@@ -148,7 +148,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCom
       if (method === 'email') {
         const res = await supabase.auth.signInWithOtp({
           email,
-          options: { shouldCreateUser: isSignUp }
+          options: { shouldCreateUser: true }
         });
         error = res.error;
       } else {
@@ -158,7 +158,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCom
         const res = await supabase.auth.signInWithOtp({
           phone: formattedPhone,
           options: {
-            shouldCreateUser: isSignUp,
+            shouldCreateUser: true,
             channel: 'whatsapp'
           }
         });
