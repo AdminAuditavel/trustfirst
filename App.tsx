@@ -19,7 +19,104 @@ const IMAGES = {
 
 // --- Components ---
 
-const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
+const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const updates = {
+        id: user.id,
+        name,
+        location,
+        phone: phone || user.phone || '',
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: upsertError } = await supabase.from('profiles').upsert(updates);
+
+      if (upsertError) throw upsertError;
+
+      onComplete();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
+      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Complete seu perfil</h2>
+          <p className="mt-2 text-sm text-slate-500">Para gerar confiança, precisamos saber quem você é.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nome Completo</label>
+            <input
+              type="text"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="Ex: Maria Silva"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cidade e Estado</label>
+            <input
+              type="text"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="Ex: São Paulo, SP"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">WhatsApp / Telefone</label>
+            <input
+              type="tel"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">Usado apenas para parear seus contatos. Não será exibido publicamente.</p>
+          </div>
+
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+          >
+            {loading ? 'Salvando...' : 'Concluir Cadastro'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCompleteProfile: () => void }) => {
   const [method, setMethod] = useState<'email' | 'whatsapp'>('email');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -1019,10 +1116,23 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.WELCOME);
   const [session, setSession] = useState<any>(null);
 
+  const checkProfile = async (session: any) => {
+    if (!session?.user) return;
+
+    // Check if profile exists
+    const { data } = await supabase.from('profiles').select('id, name').eq('id', session.user.id).single();
+
+    if (data && data.name) {
+      setView(ViewState.HOME);
+    } else {
+      setView(ViewState.COMPLETE_PROFILE);
+    }
+  };
+
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) setView(ViewState.HOME);
+      if (session) checkProfile(session);
     });
 
     const {
@@ -1030,7 +1140,7 @@ const App: React.FC = () => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        setView(ViewState.HOME);
+        checkProfile(session);
       } else {
         setView(ViewState.WELCOME);
       }
@@ -1044,7 +1154,9 @@ const App: React.FC = () => {
       case ViewState.WELCOME:
         return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
       case ViewState.AUTH:
-        return <AuthScreen onLogin={() => { }} />;
+        return <AuthScreen onLogin={() => checkProfile(session)} onCompleteProfile={() => setView(ViewState.COMPLETE_PROFILE)} />;
+      case ViewState.COMPLETE_PROFILE:
+        return <CompleteProfileScreen onComplete={() => setView(ViewState.HOME)} />;
       case ViewState.PRIVACY:
         return <PrivacyScreen onSync={() => setView(ViewState.HOME)} onBack={() => setView(ViewState.WELCOME)} />;
       case ViewState.HOME:
