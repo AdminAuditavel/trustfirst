@@ -73,7 +73,7 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
   );
 };
 
-const WelcomeScreen = ({ onStart }: { onStart: () => void }) => (
+const WelcomeScreen = ({ onStart, onLogin }: { onStart: () => void, onLogin: () => void }) => (
   <div className="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-hidden">
     <div className="absolute inset-0 w-full h-full overflow-hidden">
       <div className="w-full h-full bg-center bg-no-repeat bg-cover flex flex-col justify-end" style={{ backgroundImage: `url("${IMAGES.bgWelcome}")` }}>
@@ -99,7 +99,7 @@ const WelcomeScreen = ({ onStart }: { onStart: () => void }) => (
         <button onClick={onStart} className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl h-14 px-5 bg-primary text-white text-base font-bold leading-normal tracking-wide ios-shadow active:scale-[0.98] transition-transform">
           <span className="truncate">Começar</span>
         </button>
-        <button className="flex w-full cursor-pointer items-center justify-center overflow-hidden h-10 px-5 text-white/70 text-sm font-medium hover:text-white transition-colors">
+        <button onClick={onLogin} className="flex w-full cursor-pointer items-center justify-center overflow-hidden h-10 px-5 text-white/70 text-sm font-medium hover:text-white transition-colors">
           <span className="truncate">Já tenho uma conta</span>
         </button>
       </div>
@@ -956,7 +956,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (view) {
       case ViewState.WELCOME:
-        return <WelcomeScreen onStart={() => setView(ViewState.AUTH)} />;
+        return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
       case ViewState.AUTH:
         return <AuthScreen onLogin={() => { }} />;
       case ViewState.PRIVACY:
@@ -988,7 +988,7 @@ const App: React.FC = () => {
       case ViewState.CONTACTS:
         return <ContactsScreen onBack={() => setView(ViewState.CHAT_LIST)} onChat={() => setView(ViewState.CHAT)} />;
       default:
-        return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} />;
+        return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
     }
   };
 
