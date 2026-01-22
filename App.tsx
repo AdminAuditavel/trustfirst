@@ -186,7 +186,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCom
           </p>
         </div>
 
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl relative">
           <button
             type="button"
             onClick={() => { setMethod('email'); setMessage(''); }}
@@ -196,10 +196,11 @@ const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCom
           </button>
           <button
             type="button"
-            onClick={() => { setMethod('whatsapp'); setMessage(''); }}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'whatsapp' ? 'bg-[#25D366] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+            disabled
+            className="flex-1 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 dark:text-slate-600 cursor-not-allowed flex items-center justify-center gap-2"
           >
             WhatsApp
+            <span className="bg-slate-200 dark:bg-slate-700 text-[10px] px-1.5 py-0.5 rounded text-slate-500 font-bold">EM BREVE</span>
           </button>
         </div>
 
