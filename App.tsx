@@ -157,6 +157,8 @@ const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCom
         } else if (error.message.includes("Signups not allowed")) {
           setMessage('Cadastro não permitido ou conta já existe. Tente fazer login.');
           setIsSignUp(false);
+        } else if (error.message.includes("Unsupported phone provider")) {
+          setMessage('Login por WhatsApp indisponível (Provider não ativado no Supabase). Tente por E-mail.');
         } else {
           setMessage('Erro: ' + error.message);
         }
