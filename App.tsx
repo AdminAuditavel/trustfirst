@@ -130,148 +130,7 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
   );
 };
 
-const AuthScreen = ({ onLogin, onCompleteProfile }: { onLogin: () => void, onCompleteProfile: () => void }) => {
-  const [method, setMethod] = useState<'email' | 'whatsapp'>('email');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage('');
-
-    try {
-      let error;
-      if (method === 'email') {
-        const res = await supabase.auth.signInWithOtp({
-          email,
-          options: { shouldCreateUser: true }
-        });
-        error = res.error;
-      } else {
-        const cleanPhone = phone.replace(/[^\d+]/g, '');
-        const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+55${cleanPhone}`;
-
-        const res = await supabase.auth.signInWithOtp({
-          phone: formattedPhone,
-          options: {
-            shouldCreateUser: true,
-            channel: 'whatsapp'
-          }
-        });
-        error = res.error;
-      }
-
-      if (error) {
-        if (error.message.includes("rate limit")) {
-          setMessage('Muitas tentativas. Por favor, aguarde alguns instantes.');
-        } else if (error.message.includes("Signups not allowed")) {
-          setMessage('Cadastro não permitido ou conta já existe. Tente fazer login.');
-          setIsSignUp(false);
-        } else if (error.message.includes("Unsupported phone provider")) {
-          setMessage('Login por WhatsApp indisponível (Provider não ativado no Supabase). Tente por E-mail.');
-        } else {
-          setMessage('Erro: ' + error.message);
-        }
-      } else {
-        if (method === 'email') {
-          setMessage(`Link de ${isSignUp ? 'cadastro' : 'acesso'} enviado para seu e-mail!`);
-        } else {
-          setMessage(`Código enviado para seu WhatsApp!`);
-        }
-      }
-    } catch (err: any) {
-      setMessage('Erro inesperado: ' + err.message);
-    }
-
-    setLoading(false);
-  };
-
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background-light dark:bg-background-dark p-6">
-      <div className="w-full max-w-sm space-y-8">
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">TrustFirst</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            {isSignUp ? 'Crie sua conta para começar' : 'Entre para acessar sua rede de confiança'}
-          </p>
-        </div>
-
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl relative">
-          <button
-            type="button"
-            onClick={() => { setMethod('email'); setMessage(''); }}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'email' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-          >
-            E-mail
-          </button>
-          <button
-            type="button"
-            disabled
-            className="flex-1 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 dark:text-slate-600 cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            WhatsApp
-            <span className="bg-slate-200 dark:bg-slate-700 text-[10px] px-1.5 py-0.5 rounded text-slate-500 font-bold">EM BREVE</span>
-          </button>
-        </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <div>
-            <label htmlFor="input-field" className="sr-only">{method === 'email' ? 'E-mail' : 'WhatsApp'}</label>
-            {method === 'email' ? (
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="relative block w-full appearance-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm dark:bg-[#1c2127] dark:border-slate-700 dark:text-white"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            ) : (
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                required
-                className="relative block w-full appearance-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-[#25D366] focus:outline-none focus:ring-[#25D366] sm:text-sm dark:bg-[#1c2127] dark:border-slate-700 dark:text-white"
-                placeholder="(11) 99999-9999"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            )}
-            {method === 'whatsapp' && <p className="mt-2 text-xs text-slate-500 ml-1">Enviaremos um código de verificação para seu WhatsApp.</p>}
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`group relative flex w-full justify-center rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 ${method === 'whatsapp' ? 'bg-[#25D366] hover:bg-[#20bd5a] focus:ring-[#25D366]' : 'bg-primary hover:bg-primary/90 focus:ring-primary'}`}
-            >
-              {loading ? 'Enviando...' : (isSignUp ? (method === 'whatsapp' ? 'Receber Código' : 'Cadastrar com E-mail') : (method === 'whatsapp' ? 'Entrar com WhatsApp' : 'Entrar com E-mail'))}
-            </button>
-          </div>
-          {message && <div className={`p-3 rounded-lg border ${method === 'whatsapp' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400' : 'bg-primary/10 border-primary/20 text-primary'} `}><p className="text-center text-sm font-medium">{message}</p></div>}
-        </form>
-
-        <div className="flex flex-col items-center gap-4 mt-6">
-          <button
-            type="button"
-            onClick={() => { setIsSignUp(!isSignUp); setMessage(''); }}
-            className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary transition-colors"
-          >
-            {isSignUp ? 'Já tem uma conta? Entrar' : 'Não tem conta? Cadastre-se'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+// --- Components ---
 
 const WelcomeScreen = ({ onStart, onLogin }: { onStart: () => void, onLogin: () => void }) => (
   <div className="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-hidden">
@@ -1128,6 +987,301 @@ const BottomNav = ({ activeView, onChangeView }: { activeView: ViewState, onChan
 }
 
 // --- Main App Component ---
+
+// --- View State Types ---
+enum ViewState {
+  WELCOME,
+  AUTH,
+  COMPLETE_PROFILE,
+  PRIVACY,
+  HOME,
+  PROFILE_PERSONAL,
+  PROFILE_PROFESSIONAL,
+  SERVICE_DETAIL,
+  PRODUCT_DETAIL,
+  VISIBILITY,
+  CHAT,
+  CHAT_LIST,
+  MY_ITEMS,
+  SETTINGS,
+  NOTIFICATIONS,
+  SEARCH,
+  CONTACTS,
+  FORGOT_PASSWORD,
+  UPDATE_PASSWORD
+}
+
+// ... existing imports ...
+
+const ForgotPasswordScreen = ({ onBack, onSent }: { onBack: () => void, onSent: () => void }) => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6 justify-center items-center text-center">
+        <div className="bg-green-100 dark:bg-green-900/30 p-4 rounded-full mb-6">
+          <span className="material-symbols-outlined text-4xl text-green-600 dark:text-green-400">check_circle</span>
+        </div>
+        <h2 className="text-2xl font-bold mb-2">E-mail Enviado!</h2>
+        <p className="text-slate-500 mb-8 max-w-xs">Verifique sua caixa de entrada. Enviamos um link para você redefinir sua senha.</p>
+        <button onClick={onBack} className="text-primary font-bold hover:underline">Voltar para o Login</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
+      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+        <button onClick={onBack} className="absolute top-6 left-6 text-slate-400 hover:text-slate-600">
+          <span className="material-symbols-outlined">arrow_back</span>
+        </button>
+
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Recuperar Senha</h2>
+        <p className="text-slate-500 mb-8">Digite seu e-mail para receber as instruções.</p>
+
+        <form onSubmit={handleReset} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-mail</label>
+            <input
+              type="email"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+          >
+            {loading ? 'Enviando...' : 'Enviar Link'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const UpdatePasswordScreen = ({ onComplete }: { onComplete: () => void }) => {
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: password });
+      if (error) throw error;
+      onComplete();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6 justify-center">
+      <div className="max-w-sm mx-auto w-full">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Nova Senha</h2>
+        <p className="text-slate-500 mb-8">Digite sua nova senha abaixo.</p>
+
+        <form onSubmit={handleUpdate} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nova Senha</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+          >
+            {loading ? 'Atualizando...' : 'Definir Senha'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin: () => void, onCompleteProfile: () => void, onForgotPassword: () => void }) => {
+  const [mode, setMode] = useState<'magic_link' | 'password'>('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+
+    try {
+      if (mode === 'magic_link') {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: true }
+        });
+        if (error) throw error;
+        setMessage('Link mágico enviado! Verifique seu e-mail.');
+      } else {
+        if (isSignUp) {
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+          if (error) throw error;
+          setMessage('Cadastro realizado! Verifique seu e-mail para confirmar.');
+        } else {
+          const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (error) throw error;
+        }
+      }
+    } catch (err: any) {
+      if (err.message.includes('Invalid login credentials')) {
+        setMessage('E-mail ou senha incorretos.');
+      } else if (err.message.includes('User already registered')) {
+        setMessage('Usuário já cadastrado. Tente fazer login.');
+      } else {
+        setMessage(err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
+      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-black text-primary mb-2 tracking-tighter">trustcircle</h1>
+          <p className="text-slate-500 dark:text-slate-400">Acesse sua conta para continuar.</p>
+        </div>
+
+        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
+          <button
+            type="button"
+            onClick={() => { setMode('password'); setMessage(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === 'password' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          >
+            Senha
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('magic_link'); setMessage(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === 'magic_link' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          >
+            Link Mágico
+          </button>
+        </div>
+
+        <form onSubmit={handleAuth} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-mail</label>
+            <input
+              type="email"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="seu@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+          </div>
+
+          {mode === 'password' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Senha</label>
+              <input
+                type="password"
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                placeholder="********"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              {!isSignUp && (
+                <div className="flex justify-end mt-1">
+                  <button type="button" onClick={onForgotPassword} className="text-xs text-primary hover:underline">
+                    Esqueceu a senha?
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {message && (
+            <div className={`p-3 rounded-lg text-sm ${message.includes('confirmar') || message.includes('enviado') || message.includes('realizado') ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+              {message}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+          >
+            {loading ? 'Carregando...' : (mode === 'magic_link' ? 'Enviar Link de Acesso' : (isSignUp ? 'Criar Conta' : 'Entrar'))}
+          </button>
+        </form>
+
+        {mode === 'password' && (
+          <div className="text-center mt-6">
+            <button
+              onClick={() => { setIsSignUp(!isSignUp); setMessage(''); }}
+              className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
+            >
+              {isSignUp ? 'Já tem uma conta? Faça Login' : 'Não tem conta? Cadastre-se'}
+            </button>
+          </div>
+        )}
+
+        <div className="mt-8 text-center">
+          <p className="text-xs text-slate-400">Ao entrar, você concorda com nossos Termos de Uso e Política de Privacidade.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- App ---
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.HOME); // Start at HOME
