@@ -569,32 +569,18 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
   const handleSync = async () => {
     setLoading(true);
     try {
-      // Check if API is supported
-      if ('contacts' in navigator && 'ContactsManager' in window) {
-        const props = ['name', 'tel'];
-        const opts = { multiple: true };
+      // SIMULATION MODE: Since native API is flaky, we mock the sync
+      await new Promise(r => setTimeout(r, 1500));
 
-        // @ts-ignore - Experimental API
-        const contacts = await navigator.contacts.select(props, opts);
+      alert('Simulando sincronização... 5 contatos encontrados e importados!');
 
-        if (contacts.length > 0) {
-          console.log('Selected contacts:', contacts);
-          // Here we would normally send to backend. 
-          // For now, we simulate a success delay
-          await new Promise(r => setTimeout(r, 1000));
-          alert(`Sucesso! ${contacts.length} contatos selecionados para sincronização.`);
-          onSync();
-        } else {
-          // User cancelled
-          setLoading(false);
-        }
-      } else {
-        alert('Seu navegador não suporta a seleção nativa de contatos. Em um app real, usaríamos um fluxo de fallback (ex: upload de CSV ou Google Contacts).');
-        onSync(); // Proceed anyway for testing flow
-      }
+      // In a real app, this would send data to backend. 
+      // For now, onSync() redirects to Home.
+      onSync();
+
     } catch (ex) {
       console.error(ex);
-      alert('Erro ao acessar contatos. Tente novamente.');
+      alert('Erro ao sincronizar.');
     } finally {
       setLoading(false);
     }
