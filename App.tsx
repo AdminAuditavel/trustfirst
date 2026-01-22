@@ -30,15 +30,13 @@ interface IBGECity {
 
 const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
   const [name, setName] = useState('');
+  const [password, setPassword] = useState(''); // New password state
 
   const [ufs, setUfs] = useState<IBGEUF[]>([]);
   const [cities, setCities] = useState<IBGECity[]>([]);
   const [selectedUf, setSelectedUf] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
-  const [validationError, setValidationError] = useState(''); // New local validation state
 
-  // Maintain 'location' state for backward compatibility if needed, 
-  // but we will construct it on submit.
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -76,11 +74,18 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      // 1. Update Password if provided
+      if (password) {
+        const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+        if (pwdError) throw pwdError;
+      }
+
       const phoneValue = phone || user.phone || '';
-      const phoneHash = await hashPhone(phoneValue.replace(/\D/g, '')); // Hash only digits
+      const phoneHash = await hashPhone(phoneValue.replace(/\D/g, ''));
 
       const updates = {
         id: user.id,
+        email: user.email, // ENSURE email is saved to public profile
         name,
         location: `${selectedCity} - ${selectedUf}`,
         phone: phoneValue,
@@ -105,7 +110,7 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
       <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Complete seu perfil</h2>
-          <p className="mt-2 text-sm text-slate-500">Para gerar confiança, precisamos saber quem você é.</p>
+          <p className="mt-2 text-sm text-slate-500">Defina sua senha e seus dados para continuar.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -121,6 +126,20 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Senha de Acesso</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="Crie sua senha"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>
+          </div>
+
           <div className="flex gap-4">
             <div className="w-1/3">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
@@ -130,7 +149,7 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
                 value={selectedUf}
                 onChange={e => {
                   setSelectedUf(e.target.value);
-                  setSelectedCity(''); // Reset city when UF changes
+                  setSelectedCity('');
                 }}
               >
                 <option value="">UF</option>
@@ -186,7 +205,6 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
             type="button"
             onClick={async () => {
               await supabase.auth.signOut();
-              // Force window reload or parent callback to reset state
               window.location.reload();
             }}
             className="text-sm text-red-500 hover:text-red-700 font-medium"
@@ -1014,8 +1032,19 @@ const SettingsScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => v
         </div>
       </section>
       <div className="p-8 text-center space-y-4">
-        <button onClick={() => onChangeView(ViewState.WELCOME)} className="text-red-500 font-semibold text-base hover:opacity-80 transition-opacity">Sair</button>
-        <div className="flex flex-col items-center justify-center gap-1 opacity-40"><p className="text-xs uppercase tracking-[0.2em] font-bold">Trust Marketplace</p><p className="text-xs">Versão 1.0.42 (Produção)</p></div>
+        <div className="flex flex-col items-center justify-center gap-1 opacity-40">
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.reload();
+            }}
+            className="text-red-500 font-bold text-sm uppercase tracking-wider mb-4 hover:opacity-80 transition-opacity"
+          >
+            Sair da Conta
+          </button>
+          <p className="text-xs uppercase tracking-[0.2em] font-bold">Trust Marketplace</p>
+          <p className="text-xs">Versão 1.0.42 (Produção)</p>
+        </div>
       </div>
     </main>
   </div>
@@ -1057,28 +1086,7 @@ const BottomNav = ({ activeView, onChangeView }: { activeView: ViewState, onChan
 
 // --- Main App Component ---
 
-// --- View State Types ---
-enum ViewState {
-  WELCOME,
-  AUTH,
-  COMPLETE_PROFILE,
-  PRIVACY,
-  HOME,
-  PROFILE_PERSONAL,
-  PROFILE_PROFESSIONAL,
-  SERVICE_DETAIL,
-  PRODUCT_DETAIL,
-  VISIBILITY,
-  CHAT,
-  CHAT_LIST,
-  MY_ITEMS,
-  SETTINGS,
-  NOTIFICATIONS,
-  SEARCH,
-  CONTACTS,
-  FORGOT_PASSWORD,
-  UPDATE_PASSWORD
-}
+
 
 // ... existing imports ...
 
@@ -1208,61 +1216,39 @@ const UpdatePasswordScreen = ({ onComplete }: { onComplete: () => void }) => {
 };
 
 const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin: () => void, onCompleteProfile: () => void, onForgotPassword: () => void }) => {
-  const [step, setStep] = useState<'email' | 'password'>('email');
+  const [step, setStep] = useState<'check_email' | 'password' | 'magic_link'>('check_email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [isNewUser, setIsNewUser] = useState(false);
 
-  const TEMP_PASSWORD_PREFIX = "Tc_Probe_";
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleCheckEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     try {
-      const probePassword = `${TEMP_PASSWORD_PREFIX}${Date.now()}!Aa`;
+      // Check if user exists in public profile
+      const { data, error } = await supabase.from('users').select('id, email').eq('email', email).maybeSingle();
 
-      const { error } = await supabase.auth.signUp({
-        email,
-        password: probePassword,
-      });
-
-      if (error) {
-        if (error.message.includes("already registered") || error.message.includes("exists")) {
-          setIsNewUser(false);
-          setStep('password');
-          setMessage('');
-        } else {
-          throw error;
-        }
+      if (data) {
+        // User exists -> Show password screen
+        setStep('password');
       } else {
-        setIsNewUser(true);
-        setMessage(`Conta nova criada! Enviamos um link de confirmação para ${email}. Verifique seu e-mail.`);
+        // New User (or not yet in public table) -> Send Magic Link
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
+        });
+
+        if (otpError) throw otpError;
+        setStep('magic_link');
       }
     } catch (err: any) {
-      console.error('Signup error:', err);
-      let errorMsg = 'Ocorreu um erro ao tentar criar a conta.';
-
-      if (err?.message) {
-        if (typeof err.message === 'string') {
-          errorMsg = err.message;
-        } else if (typeof err.message === 'object') {
-          errorMsg = JSON.stringify(err.message);
-        }
-      } else if (typeof err === 'string') {
-        errorMsg = err;
-      } else {
-        errorMsg = JSON.stringify(err);
-      }
-
-      if (errorMsg.includes("rate limit") || errorMsg.includes("429")) {
-        setMessage('Muitas tentativas. Por favor, aguarde alguns minutos e tente novamente.');
-      } else {
-        setMessage(errorMsg);
-      }
+      console.error('Check email error:', err);
+      setMessage(err.message || 'Erro ao verificar e-mail');
     } finally {
       setLoading(false);
     }
@@ -1280,14 +1266,15 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
       });
 
       if (error) throw error;
+      onLogin();
     } catch (err: any) {
-      setMessage('Senha incorreta. Tente novamente.');
+      setMessage('Senha incorreta ou erro no login.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (isNewUser) {
+  if (step === 'magic_link') {
     return (
       <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6 justify-center items-center text-center">
         <div className="bg-green-100 dark:bg-green-900/30 p-4 rounded-full mb-6">
@@ -1295,11 +1282,11 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         </div>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Verifique seu E-mail</h2>
         <p className="text-slate-500 mb-8 max-w-xs">
-          Enviamos um link de confirmação para <strong>{email}</strong>.
+          Enviamos um link de validação para <strong>{email}</strong>.
           <br /><br />
-          Clique no link para ativar sua conta.
+          Clique no link para acessar e concluir seu cadastro.
         </p>
-        <button onClick={() => { setIsNewUser(false); setStep('email'); }} className="text-primary font-bold hover:underline">Voltar</button>
+        <button onClick={() => setStep('check_email')} className="text-primary font-bold hover:underline">Voltar</button>
       </div>
     );
   }
@@ -1309,11 +1296,13 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
       <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-black text-primary mb-2 tracking-tighter">trustcircle</h1>
-          <p className="text-slate-500 dark:text-slate-400">Acesse sua conta para continuar.</p>
+          <p className="text-slate-500 dark:text-slate-400">
+            {step === 'password' ? 'Digite sua senha.' : 'Acesse sua conta para continuar.'}
+          </p>
         </div>
 
-        {step === 'email' && (
-          <form onSubmit={handleEmailSubmit} className="space-y-6">
+        {step === 'check_email' && (
+          <form onSubmit={handleCheckEmail} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-mail</label>
               <input
@@ -1326,13 +1315,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 onChange={e => setEmail(e.target.value)}
               />
             </div>
-
-            {message && (
-              <div className="p-3 rounded-lg text-sm bg-red-50 text-red-600">
-                {message}
-              </div>
-            )}
-
+            {message && <p className="text-red-500 text-sm text-center">{message}</p>}
             <button
               type="submit"
               disabled={loading}
@@ -1348,11 +1331,11 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
             <div className="text-left">
               <button
                 type="button"
-                onClick={() => setStep('email')}
+                onClick={() => setStep('check_email')}
                 className="text-xs text-primary mb-4 flex items-center gap-1 hover:underline"
               >
                 <span className="material-symbols-outlined text-[14px]">arrow_back</span>
-                Alterar e-mail ({email})
+                Não é {email}?
               </button>
             </div>
 
@@ -1389,10 +1372,6 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
             </button>
           </form>
         )}
-
-        <div className="mt-8 text-center">
-          <p className="text-xs text-slate-400">Ao entrar, você concorda com nossos Termos de Uso e Política de Privacidade.</p>
-        </div>
       </div>
     </div>
   );
@@ -1458,7 +1437,9 @@ const App: React.FC = () => {
       ViewState.SETTINGS,
       ViewState.PROFILE_PERSONAL,
       ViewState.VISIBILITY,
-      ViewState.CONTACTS
+      ViewState.CONTACTS,
+      ViewState.HOME,
+      ViewState.SEARCH
     ];
 
     if (protectedRoutes.includes(targetView)) {
