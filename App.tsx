@@ -709,8 +709,13 @@ const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewS
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   useEffect(() => {
     const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+
       // 1. Fetch my visible network (Profiles)
       const { data: usersData } = await supabase.from('visible_users_for_user').select('*');
       if (usersData) setProfiles(usersData);
@@ -787,7 +792,7 @@ const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewS
         <div className="space-y-1">
           {profiles.length > 0 ? (
             profiles
-              .filter(p => p.id !== session?.user?.id) // Don't show myself
+              .filter(p => p.id !== currentUserId) // Don't show myself
               .map(profile => {
                 // Mock offer count - In real app, we would join with items table
                 // For now, let's treat everyone as having potential offers or randomize for demo if needed
