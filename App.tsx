@@ -219,6 +219,257 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
 
 // --- Components ---
 
+const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => void, isInitialSetup?: boolean }) => {
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+
+  const [ufs, setUfs] = useState<IBGEUF[]>([]);
+  const [cities, setCities] = useState<IBGECity[]>([]);
+  const [selectedUf, setSelectedUf] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+      .then(response => response.json())
+      .then(data => setUfs(data));
+
+    // Load initial data
+    const loadData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setPhone(user.phone || '');
+        const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+        if (profile) {
+          setName(profile.name || '');
+          setAvatarUrl(profile.avatar_url || '');
+          if (profile.location) {
+            try {
+              const parts = profile.location.split(' - ');
+              if (parts.length === 2 && parts[1].length === 2) {
+                setSelectedUf(parts[1]);
+                // We can't easily auto-select city without proper async chain or complex logic
+                // For now we set it, and if it matches the loaded city list (triggered by effect), it works
+                setSelectedCity(parts[0]);
+              }
+            } catch (e) { }
+          }
+        }
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedUf) {
+      fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedUf}/municipios`)
+        .then(response => response.json())
+        .then(data => setCities(data));
+    } else {
+      setCities([]);
+    }
+  }, [selectedUf]);
+
+  const hashPhone = async (phone: string) => {
+    const msgBuffer = new TextEncoder().encode(phone);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setMsg('');
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      if (password) {
+        const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+        if (pwdError) throw pwdError;
+      }
+
+      const phoneValue = phone || user.phone || '';
+      const phoneHash = await hashPhone(phoneValue.replace(/\D/g, ''));
+
+      const updates: any = {
+        id: user.id,
+        email: user.email,
+        name,
+        phone: phoneValue,
+        phone_hash: phoneHash,
+        updated_at: new Date().toISOString(),
+        avatar_url: avatarUrl
+      };
+
+      if (selectedCity && selectedUf) {
+        updates.location = `${selectedCity} - ${selectedUf}`;
+      }
+
+      const { error: upsertError } = await supabase.from('users').upsert(updates);
+
+      if (upsertError) throw upsertError;
+
+      if (!isInitialSetup) {
+        setMsg('Perfil atualizado com sucesso!');
+        setTimeout(() => {
+          onBack();
+        }, 1500);
+      } else {
+        onBack();
+      }
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
+      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+        {!isInitialSetup && (
+          <button onClick={onBack} className="absolute top-6 left-6 text-slate-400 hover:text-slate-600">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+        )}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{isInitialSetup ? 'Complete seu perfil' : 'Editar Perfil'}</h2>
+          <p className="mt-2 text-sm text-slate-500">{isInitialSetup ? 'Defina sua senha e seus dados.' : 'Atualize suas informações.'}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="size-24 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center border-4 border-white dark:border-background-dark shadow-lg" style={{ backgroundImage: `url("${avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCVdFllcYvR_SQdhiLy6q6oJFyrQF6rEUOF1t-YNSD4sADJPl-Xgc1SE_0AOn6dHxGfLIHDzs19LXKFvPyCf2QLjTFEU9Pb8jpHKkgFXdw1LRNojzyi7dWZqgXHs9ZKX9dueXN6KJh1tC4b22ppQZXyZ_kS720EkJUVzW2P9oTjsbjWKQUo8RW-kbhcm0lKGW30UyhA3aBtCoJHWu0btWdjZI5Fa7dgpAkINIIFkBcIAciFz0ynwaw5gUWmyagrTsV2out7jYi5LwA'}")` }}>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = prompt("Cole a URL da imagem do seu avatar:");
+                  if (url) setAvatarUrl(url);
+                }}
+                className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 hover:bg-primary/90 shadow-md transform translate-x-1/4 translate-y-1/4"
+              >
+                <span className="material-symbols-outlined text-sm">edit</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nome Completo</label>
+            <input
+              type="text"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="Ex: Maria Silva"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{isInitialSetup ? 'Senha de Acesso' : 'Nova Senha (opcional)'}</label>
+            <input
+              type="password"
+              required={isInitialSetup}
+              minLength={6}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="w-1/3">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+              <select
+                required={isInitialSetup}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                value={selectedUf}
+                onChange={e => {
+                  setSelectedUf(e.target.value);
+                  setSelectedCity('');
+                }}
+              >
+                <option value="">UF</option>
+                {ufs.map(uf => (
+                  <option key={uf.id} value={uf.sigla}>{uf.sigla}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cidade</label>
+              <select
+                required={isInitialSetup}
+                disabled={!selectedUf}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-50"
+                value={selectedCity}
+                onChange={e => setSelectedCity(e.target.value)}
+              >
+                <option value="">Selecione a cidade</option>
+                {cities.map(city => (
+                  <option key={city.id} value={city.nome}>{city.nome}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">WhatsApp / Telefone</label>
+            <input
+              type="tel"
+              required
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">Usado apenas para parear seus contatos. Não será exibido publicamente.</p>
+          </div>
+
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {msg && <p className="text-green-500 text-sm text-center">{msg}</p>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+          >
+            {loading ? 'Salvando...' : (isInitialSetup ? 'Concluir Cadastro' : 'Salvar Alterações')}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.reload();
+            }}
+            className="text-sm text-red-500 hover:text-red-700 font-medium"
+          >
+            {isInitialSetup ? 'Sair / Não é você?' : 'Sair da Conta'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const WelcomeScreen = ({ onStart, onLogin }: { onStart: () => void, onLogin: () => void }) => (
   <div className="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-hidden">
     <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -474,6 +725,18 @@ const ContactsScreen = ({ onBack, onChat }: { onBack: () => void, onChat: () => 
 const UserProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: ViewState) => void, onBack: () => void }) => {
   const [tab, setTab] = useState<'OFFERS' | 'SERVICES'>('OFFERS');
 
+  const [user, setUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('users').select('*').eq('id', user.id).single().then(({ data }) => {
+          if (data) setUser(data);
+        })
+      }
+    })
+  }, []);
+
   // Redirect to professional profile view if tab changes
   React.useEffect(() => {
     if (tab === 'SERVICES') {
@@ -494,14 +757,13 @@ const UserProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: View
       </div>
       <div className="flex p-4 flex-col items-center">
         <div className="relative mb-4">
-          <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-4 border-primary/20" style={{ backgroundImage: `url("${IMAGES.avatarAlex}")` }}></div>
+          <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-4 border-primary/20" style={{ backgroundImage: `url("${user?.avatar_url || IMAGES.avatarAlex}")` }}></div>
           <div className="absolute bottom-1 right-1 bg-green-500 size-6 rounded-full border-4 border-background-light dark:border-background-dark"></div>
         </div>
-        <div className="flex items-center gap-1"><p className="text-slate-900 dark:text-white text-[22px] font-bold text-center">Alex Silva</p><span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></div>
-        <p className="text-slate-500 dark:text-[#9dabb9] text-base text-center">São Paulo, SP • Ativo agora</p>
-        <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
-          <span className="material-symbols-outlined text-primary text-sm mr-1" style={{ fontVariationSettings: "'FILL' 1" }}>shield_with_heart</span>
-          <p className="text-primary text-sm font-bold">Trust Score: 98%</p>
+        <div className="flex items-center gap-1"><p className="text-slate-900 dark:text-white text-[22px] font-bold text-center">{user?.name || 'Seu Nome'}</p><span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></div>
+        <p className="text-slate-500 dark:text-[#9dabb9] text-base text-center">{user?.location || 'Localização não definida'}</p>
+        <div className="mt-4">
+          <button onClick={() => onChangeView(ViewState.EDIT_PROFILE)} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white rounded-full text-sm font-bold shadow-sm hover:opacity-80 transition-all">Editar Perfil</button>
         </div>
       </div>
 
@@ -1486,7 +1748,7 @@ const App: React.FC = () => {
       case ViewState.UPDATE_PASSWORD:
         return <UpdatePasswordScreen onComplete={() => setView(ViewState.HOME)} />;
       case ViewState.COMPLETE_PROFILE:
-        return <CompleteProfileScreen onComplete={() => {
+        return <EditProfileScreen isInitialSetup={true} onBack={() => {
           setHasProfile(true);
           setView(ViewState.HOME);
         }} />;
@@ -1518,6 +1780,12 @@ const App: React.FC = () => {
         return <SearchScreen onBack={() => setView(ViewState.HOME)} />;
       case ViewState.CONTACTS:
         return <ContactsScreen onBack={() => setView(ViewState.CHAT_LIST)} onChat={() => setView(ViewState.CHAT)} />;
+      case ViewState.EDIT_PROFILE:
+        return <EditProfileScreen onBack={() => {
+          // Reload user data slightly
+          checkProfile(session);
+          setView(ViewState.PROFILE_PERSONAL);
+        }} />;
       default:
         return <HomeScreen onChangeView={handleViewChange} />;
     }
