@@ -563,50 +563,89 @@ const WelcomeScreen = ({ onStart, onLogin }: { onStart: () => void, onLogin: () 
   </div>
 );
 
-const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => void }) => (
-  <div className="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-hidden max-w-[430px] mx-auto border-x border-white/5">
-    <div className="flex items-center bg-transparent p-4 pb-2 justify-between">
-      <div onClick={onBack} className="text-white flex size-12 shrink-0 items-center justify-start cursor-pointer">
-        <span className="material-symbols-outlined text-white" style={{ fontSize: '24px' }}>arrow_back_ios</span>
+const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => void }) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSync = async () => {
+    setLoading(true);
+    try {
+      // Check if API is supported
+      if ('contacts' in navigator && 'ContactsManager' in window) {
+        const props = ['name', 'tel'];
+        const opts = { multiple: true };
+
+        // @ts-ignore - Experimental API
+        const contacts = await navigator.contacts.select(props, opts);
+
+        if (contacts.length > 0) {
+          console.log('Selected contacts:', contacts);
+          // Here we would normally send to backend. 
+          // For now, we simulate a success delay
+          await new Promise(r => setTimeout(r, 1000));
+          alert(`Sucesso! ${contacts.length} contatos selecionados para sincronização.`);
+          onSync();
+        } else {
+          // User cancelled
+          setLoading(false);
+        }
+      } else {
+        alert('Seu navegador não suporta a seleção nativa de contatos. Em um app real, usaríamos um fluxo de fallback (ex: upload de CSV ou Google Contacts).');
+        onSync(); // Proceed anyway for testing flow
+      }
+    } catch (ex) {
+      console.error(ex);
+      alert('Erro ao acessar contatos. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-hidden max-w-[430px] mx-auto border-x border-white/5">
+      <div className="flex items-center bg-transparent p-4 pb-2 justify-between">
+        <div onClick={onBack} className="text-white flex size-12 shrink-0 items-center justify-start cursor-pointer">
+          <span className="material-symbols-outlined text-white" style={{ fontSize: '24px' }}>arrow_back_ios</span>
+        </div>
+        <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Privacidade</h2>
       </div>
-      <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Privacidade</h2>
-    </div>
-    <div className="flex justify-center pt-8">
-      <div className="relative w-48 h-48 flex items-center justify-center">
-        <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl"></div>
-        <div className="relative bg-primary/30 p-8 rounded-full border border-primary/40">
-          <span className="material-symbols-outlined text-primary" style={{ fontSize: '80px' }}>group_work</span>
+      <div className="flex justify-center pt-8">
+        <div className="relative w-48 h-48 flex items-center justify-center">
+          <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl"></div>
+          <div className="relative bg-primary/30 p-8 rounded-full border border-primary/40">
+            <span className="material-symbols-outlined text-primary" style={{ fontSize: '80px' }}>group_work</span>
+          </div>
         </div>
       </div>
-    </div>
-    <div className="px-6">
-      <h1 className="text-white tracking-tight text-[32px] font-extrabold leading-tight text-center pb-2 pt-8">Seu Círculo de Confiança</h1>
-      <p className="text-white/60 text-base font-normal leading-normal text-center px-4">Construa sua rede segura para negociar com quem você já conhece.</p>
-    </div>
-    <div className="mt-8 px-6 space-y-2">
-      <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
-        <div className="flex size-10 items-center justify-center rounded-full bg-primary/20">
-          <span className="material-symbols-outlined text-primary text-[24px]">visibility</span>
-        </div>
-        <p className="text-white text-base font-medium leading-tight">Você vê ofertas de pessoas que conhece</p>
+      <div className="px-6">
+        <h1 className="text-white tracking-tight text-[32px] font-extrabold leading-tight text-center pb-2 pt-8">Seu Círculo de Confiança</h1>
+        <p className="text-white/60 text-base font-normal leading-normal text-center px-4">Construa sua rede segura para negociar com quem você já conhece.</p>
       </div>
-      <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
-        <div className="flex size-10 items-center justify-center rounded-full bg-primary/20">
-          <span className="material-symbols-outlined text-primary text-[24px]">connect_without_contact</span>
+      <div className="mt-8 px-6 space-y-2">
+        <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary/20">
+            <span className="material-symbols-outlined text-primary text-[24px]">visibility</span>
+          </div>
+          <p className="text-white text-base font-medium leading-tight">Você vê ofertas de pessoas que conhece</p>
         </div>
-        <p className="text-white text-base font-medium leading-tight">Seus contatos veem suas ofertas</p>
+        <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary/20">
+            <span className="material-symbols-outlined text-primary text-[24px]">connect_without_contact</span>
+          </div>
+          <p className="text-white text-base font-medium leading-tight">Seus contatos veem suas ofertas</p>
+        </div>
+      </div>
+      <div className="mt-auto pb-10 px-6 space-y-4">
+        <button onClick={handleSync} disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2">
+          {loading ? <span className="material-symbols-outlined animate-spin">refresh</span> : null}
+          {loading ? 'Sincronizando...' : 'Sincronizar contatos'}
+        </button>
+        <button onClick={onSync} className="w-full bg-transparent text-white/40 font-semibold py-2 px-6 rounded-xl hover:text-white/60 transition-colors">
+          Agora não
+        </button>
       </div>
     </div>
-    <div className="mt-auto pb-10 px-6 space-y-4">
-      <button onClick={onSync} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-[0.98]">
-        Sincronizar contatos
-      </button>
-      <button onClick={onSync} className="w-full bg-transparent text-white/40 font-semibold py-2 px-6 rounded-xl hover:text-white/60 transition-colors">
-        Agora não
-      </button>
-    </div>
-  </div>
-);
+  )
+};
 
 const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewState) => void, onSelectUser: (id: string) => void }) => {
   const [items, setItems] = useState<any[]>([]);
