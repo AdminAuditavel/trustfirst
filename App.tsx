@@ -17,14 +17,47 @@ const IMAGES = {
 
 // --- Components ---
 
-// --- Components ---
+interface IBGEUF {
+  id: number;
+  sigla: string;
+  nome: string;
+}
+
+interface IBGECity {
+  id: number;
+  nome: string;
+}
 
 const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
   const [name, setName] = useState('');
-  const [location, setLocation] = useState('');
+
+  const [ufs, setUfs] = useState<IBGEUF[]>([]);
+  const [cities, setCities] = useState<IBGECity[]>([]);
+  const [selectedUf, setSelectedUf] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [validationError, setValidationError] = useState(''); // New local validation state
+
+  // Maintain 'location' state for backward compatibility if needed, 
+  // but we will construct it on submit.
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+      .then(response => response.json())
+      .then(data => setUfs(data));
+  }, []);
+
+  useEffect(() => {
+    if (selectedUf) {
+      fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedUf}/municipios`)
+        .then(response => response.json())
+        .then(data => setCities(data));
+    } else {
+      setCities([]);
+    }
+  }, [selectedUf]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +71,7 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
       const updates = {
         id: user.id,
         name,
-        location,
+        location: `${selectedCity} - ${selectedUf}`,
         phone: phone || user.phone || '',
         updated_at: new Date().toISOString(),
       };
@@ -76,16 +109,40 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cidade e Estado</label>
-            <input
-              type="text"
-              required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
-              placeholder="Ex: São Paulo, SP"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-            />
+          <div className="flex gap-4">
+            <div className="w-1/3">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+              <select
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                value={selectedUf}
+                onChange={e => {
+                  setSelectedUf(e.target.value);
+                  setSelectedCity(''); // Reset city when UF changes
+                }}
+              >
+                <option value="">UF</option>
+                {ufs.map(uf => (
+                  <option key={uf.id} value={uf.sigla}>{uf.sigla}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cidade</label>
+              <select
+                required
+                disabled={!selectedUf}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-50"
+                value={selectedCity}
+                onChange={e => setSelectedCity(e.target.value)}
+              >
+                <option value="">Selecione a cidade</option>
+                {cities.map(city => (
+                  <option key={city.id} value={city.nome}>{city.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
@@ -1174,8 +1231,26 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setMessage(`Conta nova criada! Enviamos um link de confirmação para ${email}. Verifique seu e-mail.`);
       }
     } catch (err: any) {
-      console.error(err);
-      setMessage(err.message);
+      console.error('Signup error:', err);
+      let errorMsg = 'Ocorreu um erro ao tentar criar a conta.';
+
+      if (err?.message) {
+        if (typeof err.message === 'string') {
+          errorMsg = err.message;
+        } else if (typeof err.message === 'object') {
+          errorMsg = JSON.stringify(err.message);
+        }
+      } else if (typeof err === 'string') {
+        errorMsg = err;
+      } else {
+        errorMsg = JSON.stringify(err);
+      }
+
+      if (errorMsg.includes("rate limit") || errorMsg.includes("429")) {
+        setMessage('Muitas tentativas. Por favor, aguarde alguns minutos e tente novamente.');
+      } else {
+        setMessage(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
