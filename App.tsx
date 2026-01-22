@@ -23,15 +23,31 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    setMessage('');
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: isSignUp, // Enforce intent
+      }
+    });
+
     if (error) {
-      setMessage('Erro: ' + error.message);
+      if (error.message.includes("rate limit")) {
+        setMessage('Muitas tentativas. Por favor, aguarde alguns instantes e tente novamente.');
+      } else if (error.message.includes("Signups not allowed")) {
+        setMessage('Cadastro não permitido no momento ou você já possui conta. Tente fazer login.');
+        setIsSignUp(false);
+      } else {
+        setMessage('Erro: ' + error.message);
+      }
     } else {
-      setMessage('Verifique seu e-mail para o link de login!');
+      setMessage(`Link de ${isSignUp ? 'cadastro' : 'acesso'} enviado! Verifique seu e-mail.`);
     }
     setLoading(false);
   };
@@ -41,7 +57,9 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">TrustFirst</h2>
-          <p className="mt-2 text-sm text-slate-500">Entre para acessar sua rede de confiança</p>
+          <p className="mt-2 text-sm text-slate-500">
+            {isSignUp ? 'Crie sua conta para começar' : 'Entre para acessar sua rede de confiança'}
+          </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div>
@@ -63,11 +81,21 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
               disabled={loading}
               className="group relative flex w-full justify-center rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
             >
-              {loading ? 'Enviando Link...' : 'Entrar com E-mail'}
+              {loading ? 'Enviando...' : (isSignUp ? 'Cadastrar' : 'Entrar com E-mail')}
             </button>
           </div>
-          {message && <p className="text-center text-sm text-primary">{message}</p>}
+          {message && <div className="p-3 rounded-lg bg-primary/10 border border-primary/20"><p className="text-center text-sm text-primary font-medium">{message}</p></div>}
         </form>
+
+        <div className="flex flex-col items-center gap-4 mt-6">
+          <button
+            type="button"
+            onClick={() => { setIsSignUp(!isSignUp); setMessage(''); }}
+            className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary transition-colors"
+          >
+            {isSignUp ? 'Já tem uma conta? Entrar' : 'Não tem conta? Cadastre-se'}
+          </button>
+        </div>
       </div>
     </div>
   );
