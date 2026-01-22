@@ -20,7 +20,9 @@ const IMAGES = {
 // --- Components ---
 
 const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
+  const [method, setMethod] = useState<'email' | 'whatsapp'>('email');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -30,25 +32,48 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
     setLoading(true);
     setMessage('');
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: isSignUp, // Enforce intent
-      }
-    });
-
-    if (error) {
-      if (error.message.includes("rate limit")) {
-        setMessage('Muitas tentativas. Por favor, aguarde alguns instantes e tente novamente.');
-      } else if (error.message.includes("Signups not allowed")) {
-        setMessage('Cadastro não permitido no momento ou você já possui conta. Tente fazer login.');
-        setIsSignUp(false);
+    try {
+      let error;
+      if (method === 'email') {
+        const res = await supabase.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: isSignUp }
+        });
+        error = res.error;
       } else {
-        setMessage('Erro: ' + error.message);
+        const cleanPhone = phone.replace(/[^\d+]/g, '');
+        const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+55${cleanPhone}`;
+
+        const res = await supabase.auth.signInWithOtp({
+          phone: formattedPhone,
+          options: {
+            shouldCreateUser: isSignUp,
+            channel: 'whatsapp'
+          }
+        });
+        error = res.error;
       }
-    } else {
-      setMessage(`Link de ${isSignUp ? 'cadastro' : 'acesso'} enviado! Verifique seu e-mail.`);
+
+      if (error) {
+        if (error.message.includes("rate limit")) {
+          setMessage('Muitas tentativas. Por favor, aguarde alguns instantes.');
+        } else if (error.message.includes("Signups not allowed")) {
+          setMessage('Cadastro não permitido ou conta já existe. Tente fazer login.');
+          setIsSignUp(false);
+        } else {
+          setMessage('Erro: ' + error.message);
+        }
+      } else {
+        if (method === 'email') {
+          setMessage(`Link de ${isSignUp ? 'cadastro' : 'acesso'} enviado para seu e-mail!`);
+        } else {
+          setMessage(`Código enviado para seu WhatsApp!`);
+        }
+      }
+    } catch (err: any) {
+      setMessage('Erro inesperado: ' + err.message);
     }
+
     setLoading(false);
   };
 
@@ -61,30 +86,63 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
             {isSignUp ? 'Crie sua conta para começar' : 'Entre para acessar sua rede de confiança'}
           </p>
         </div>
+
+        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => { setMethod('email'); setMessage(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'email' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          >
+            E-mail
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMethod('whatsapp'); setMessage(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${method === 'whatsapp' ? 'bg-[#25D366] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          >
+            WhatsApp
+          </button>
+        </div>
+
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div>
-            <label htmlFor="email" className="sr-only">Email address</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              className="relative block w-full appearance-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm dark:bg-[#1c2127] dark:border-slate-700 dark:text-white"
-              placeholder="Endereço de e-mail"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <label htmlFor="input-field" className="sr-only">{method === 'email' ? 'E-mail' : 'WhatsApp'}</label>
+            {method === 'email' ? (
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                className="relative block w-full appearance-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm dark:bg-[#1c2127] dark:border-slate-700 dark:text-white"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            ) : (
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                required
+                className="relative block w-full appearance-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-[#25D366] focus:outline-none focus:ring-[#25D366] sm:text-sm dark:bg-[#1c2127] dark:border-slate-700 dark:text-white"
+                placeholder="(11) 99999-9999"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            )}
+            {method === 'whatsapp' && <p className="mt-2 text-xs text-slate-500 ml-1">Enviaremos um código de verificação para seu WhatsApp.</p>}
           </div>
+
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full justify-center rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
+              className={`group relative flex w-full justify-center rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 ${method === 'whatsapp' ? 'bg-[#25D366] hover:bg-[#20bd5a] focus:ring-[#25D366]' : 'bg-primary hover:bg-primary/90 focus:ring-primary'}`}
             >
-              {loading ? 'Enviando...' : (isSignUp ? 'Cadastrar' : 'Entrar com E-mail')}
+              {loading ? 'Enviando...' : (isSignUp ? (method === 'whatsapp' ? 'Receber Código' : 'Cadastrar com E-mail') : (method === 'whatsapp' ? 'Entrar com WhatsApp' : 'Entrar com E-mail'))}
             </button>
           </div>
-          {message && <div className="p-3 rounded-lg bg-primary/10 border border-primary/20"><p className="text-center text-sm text-primary font-medium">{message}</p></div>}
+          {message && <div className={`p-3 rounded-lg border ${method === 'whatsapp' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400' : 'bg-primary/10 border-primary/20 text-primary'} `}><p className="text-center text-sm font-medium">{message}</p></div>}
         </form>
 
         <div className="flex flex-col items-center gap-4 mt-6">
