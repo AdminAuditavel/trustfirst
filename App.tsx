@@ -1552,10 +1552,12 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
     setMessage('');
 
     try {
-      // Check if user exists in public profile
-      const { data, error } = await supabase.from('users').select('id, email').eq('email', email).maybeSingle();
+      // Check if user exists in public profile using Secure RPC
+      const { data: exists, error } = await supabase.rpc('check_user_exists', { email_arg: email });
 
-      if (data) {
+      if (error) throw error;
+
+      if (exists) {
         // User exists -> Show password screen
         setStep('password');
       } else {
