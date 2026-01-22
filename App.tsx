@@ -677,8 +677,16 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
           <p className="text-white text-base font-medium leading-tight">Seus contatos veem suas ofertas</p>
         </div>
       </div>
-      <div className="mt-auto pb-10 px-6 space-y-4">
-        <button onClick={handleSync} disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2">
+      <div className="mt-auto pb-10 px-6 space-y-4 relative z-50 pointer-events-auto">
+        <button
+          onClick={() => {
+            console.log('Button Clicked via onClick');
+            handleSync();
+          }}
+          onMouseDown={() => console.log('Button MouseDown')}
+          disabled={loading}
+          className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer relative z-50"
+        >
           {loading ? <span className="material-symbols-outlined animate-spin">refresh</span> : null}
           {loading ? 'Sincronizando...' : 'Sincronizar contatos'}
         </button>
