@@ -29,9 +29,9 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ email });
     if (error) {
-      setMessage('Error: ' + error.message);
+      setMessage('Erro: ' + error.message);
     } else {
-      setMessage('Check your email for the login link!');
+      setMessage('Verifique seu e-mail para o link de login!');
     }
     setLoading(false);
   };
@@ -41,7 +41,7 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">TrustFirst</h2>
-          <p className="mt-2 text-sm text-slate-500">Sign in to access your trust network</p>
+          <p className="mt-2 text-sm text-slate-500">Entre para acessar sua rede de confiança</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div>
@@ -52,7 +52,7 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
               type="email"
               required
               className="relative block w-full appearance-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm dark:bg-[#1c2127] dark:border-slate-700 dark:text-white"
-              placeholder="Email address"
+              placeholder="Endereço de e-mail"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -63,7 +63,7 @@ const AuthScreen = ({ onLogin }: { onLogin: () => void }) => {
               disabled={loading}
               className="group relative flex w-full justify-center rounded-xl bg-primary px-4 py-3 text-sm font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
             >
-              {loading ? 'Sending Magic Link...' : 'Sign in with Email'}
+              {loading ? 'Enviando Link...' : 'Entrar com E-mail'}
             </button>
           </div>
           {message && <p className="text-center text-sm text-primary">{message}</p>}
@@ -181,7 +181,7 @@ const HomeScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => void 
           <div onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className="flex size-10 shrink-0 items-center justify-center rounded-full overflow-hidden border-2 border-primary/20 cursor-pointer">
             <div className="bg-center bg-no-repeat aspect-square bg-cover w-full h-full" style={{ backgroundImage: `url("${IMAGES.avatarAlex}")` }}></div>
           </div>
-          <h1 className="text-lg font-bold leading-tight tracking-tight flex-1 text-center">Discover People</h1>
+          <h1 className="text-lg font-bold leading-tight tracking-tight flex-1 text-center">Descobrir Pessoas</h1>
           <div className="flex w-10 items-center justify-end">
             <button onClick={() => onChangeView(ViewState.SEARCH)} className="flex items-center justify-center rounded-full h-10 w-10 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
               <span className="material-symbols-outlined">search</span>
@@ -856,26 +856,26 @@ const SettingsScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => v
     <header className="sticky top-0 z-10 bg-background-light dark:bg-background-dark border-b border-slate-200 dark:border-slate-800">
       <div className="flex items-center p-4 pb-4 justify-between">
         <div onClick={() => onChangeView(ViewState.NOTIFICATIONS)} className="text-slate-900 dark:text-white flex size-10 shrink-0 items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><span className="material-symbols-outlined">arrow_back_ios_new</span></div>
-        <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight flex-1 text-center pr-10">Settings and Privacy</h2>
+        <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight flex-1 text-center pr-10">Configurações e Privacidade</h2>
       </div>
     </header>
     <main className="flex-1 overflow-y-auto">
       <section className="mt-2">
-        <h3 className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider px-6 pt-6 pb-2">Trust Network</h3>
+        <h3 className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider px-6 pt-6 pb-2">Rede de Confiança</h3>
         <div onClick={() => onChangeView(ViewState.CONTACTS)} className="flex items-center gap-4 bg-white dark:bg-[#1a242e] mx-4 rounded-xl px-4 min-h-[72px] py-2 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-[#222d39] transition-colors mb-2">
           <div className="flex items-center gap-4">
             <div className="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-12"><span className="material-symbols-outlined">group</span></div>
-            <div className="flex flex-col justify-center"><p className="text-slate-900 dark:text-white text-base font-semibold">Synchronized contacts</p><p className="text-slate-500 dark:text-slate-400 text-sm font-normal">Sync to find trusted friends to trade with</p></div>
+            <div className="flex flex-col justify-center"><p className="text-slate-900 dark:text-white text-base font-semibold">Contatos sincronizados</p><p className="text-slate-500 dark:text-slate-400 text-sm font-normal">Sincronize para encontrar amigos para negociar</p></div>
           </div>
           <div className="shrink-0"><div className="text-slate-400 flex size-7 items-center justify-center"><span className="material-symbols-outlined">chevron_right</span></div></div>
         </div>
       </section>
       <section>
-        <h3 className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider px-6 pt-4 pb-2">Preferences</h3>
+        <h3 className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider px-6 pt-4 pb-2">Preferências</h3>
         <div className="flex items-center gap-4 bg-white dark:bg-[#1a242e] mx-4 rounded-xl px-4 min-h-[72px] py-2 justify-between mb-2">
           <div className="flex items-center gap-4">
             <div className="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-12"><span className="material-symbols-outlined">notifications</span></div>
-            <div className="flex flex-col justify-center"><p className="text-slate-900 dark:text-white text-base font-semibold">Notification preferences</p><p className="text-slate-500 dark:text-slate-400 text-sm font-normal">Currently turned off</p></div>
+            <div className="flex flex-col justify-center"><p className="text-slate-900 dark:text-white text-base font-semibold">Notificações</p><p className="text-slate-500 dark:text-slate-400 text-sm font-normal">Atualmente desativado</p></div>
           </div>
           <div className="shrink-0">
             <label className="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-slate-200 dark:bg-slate-700 p-0.5 transition-colors has-[:checked]:bg-primary">
@@ -886,8 +886,8 @@ const SettingsScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => v
         </div>
       </section>
       <div className="p-8 text-center space-y-4">
-        <button onClick={() => onChangeView(ViewState.WELCOME)} className="text-red-500 font-semibold text-base hover:opacity-80 transition-opacity">Log Out</button>
-        <div className="flex flex-col items-center justify-center gap-1 opacity-40"><p className="text-xs uppercase tracking-[0.2em] font-bold">Trust Marketplace</p><p className="text-xs">Version 1.0.42 (Production)</p></div>
+        <button onClick={() => onChangeView(ViewState.WELCOME)} className="text-red-500 font-semibold text-base hover:opacity-80 transition-opacity">Sair</button>
+        <div className="flex flex-col items-center justify-center gap-1 opacity-40"><p className="text-xs uppercase tracking-[0.2em] font-bold">Trust Marketplace</p><p className="text-xs">Versão 1.0.42 (Produção)</p></div>
       </div>
     </main>
   </div>
