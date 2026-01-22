@@ -1118,37 +1118,39 @@ const BottomNav = ({ activeView, onChangeView }: { activeView: ViewState, onChan
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.HOME); // Start at HOME
   const [session, setSession] = useState<any>(null);
+  const [hasProfile, setHasProfile] = useState<boolean>(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
 
-  const checkProfile = async (session: any) => {
-    if (!session?.user) return;
+  const checkProfile = async (currentSession: any) => {
+    if (!currentSession?.user) {
+      setHasProfile(false);
+      setIsLoadingProfile(false);
+      return;
+    }
 
-    // Check if profile exists
-    const { data } = await supabase.from('users').select('id, name').eq('id', session.user.id).single();
-
-    if (data && data.name) {
-      // Stay on current view or go to Home IF it was Auth flow
-      // For now, simple check: if we were in Auth/Welcome flow, go to Home
-      setView(v => [ViewState.AUTH, ViewState.WELCOME, ViewState.COMPLETE_PROFILE].includes(v) ? ViewState.HOME : v);
-    } else {
-      setView(ViewState.COMPLETE_PROFILE);
+    try {
+      const { data } = await supabase.from('users').select('id, name').eq('id', currentSession.user.id).single();
+      const exists = !!(data && data.name);
+      setHasProfile(exists);
+    } catch (error) {
+      console.error("Profile check error:", error);
+      setHasProfile(false);
+    } finally {
+      setIsLoadingProfile(false);
     }
   };
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) checkProfile(session);
+      checkProfile(session);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-        checkProfile(session);
-      } else {
-        // Do not auto-redirect to Welcome. Let user browse Home.
-      }
+      checkProfile(session);
     });
 
     return () => subscription.unsubscribe();
@@ -1167,9 +1169,15 @@ const App: React.FC = () => {
       ViewState.CONTACTS
     ];
 
-    if (!session && protectedRoutes.includes(targetView)) {
-      setView(ViewState.AUTH); // Redirect to Login/Auth
-      return;
+    if (protectedRoutes.includes(targetView)) {
+      if (!session) {
+        setView(ViewState.AUTH); // Redirect to Login/Auth
+        return;
+      }
+      if (!isLoadingProfile && !hasProfile) {
+        setView(ViewState.COMPLETE_PROFILE); // Redirect to Complete Profile
+        return;
+      }
     }
 
     setView(targetView);
@@ -1180,9 +1188,16 @@ const App: React.FC = () => {
       case ViewState.WELCOME:
         return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
       case ViewState.AUTH:
-        return <AuthScreen onLogin={() => checkProfile(session)} onCompleteProfile={() => setView(ViewState.COMPLETE_PROFILE)} />;
+        return <AuthScreen onLogin={() => {
+          checkProfile(session).then(() => {
+            setView(ViewState.HOME);
+          });
+        }} onCompleteProfile={() => setView(ViewState.COMPLETE_PROFILE)} />;
       case ViewState.COMPLETE_PROFILE:
-        return <CompleteProfileScreen onComplete={() => setView(ViewState.HOME)} />;
+        return <CompleteProfileScreen onComplete={() => {
+          setHasProfile(true);
+          setView(ViewState.HOME);
+        }} />;
       case ViewState.PRIVACY:
         return <PrivacyScreen onSync={() => setView(ViewState.HOME)} onBack={() => setView(ViewState.WELCOME)} />;
       case ViewState.HOME:
