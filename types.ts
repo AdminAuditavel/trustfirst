@@ -1,0 +1,26 @@
+export enum ViewState {
+  WELCOME = 'WELCOME',
+  AUTH = 'AUTH',
+  PRIVACY = 'PRIVACY',
+  HOME = 'HOME',
+  PROFILE_PERSONAL = 'PROFILE_PERSONAL',
+  PROFILE_PROFESSIONAL = 'PROFILE_PROFESSIONAL',
+  PRODUCT_DETAIL = 'PRODUCT_DETAIL',
+  SERVICE_DETAIL = 'SERVICE_DETAIL',
+  VISIBILITY = 'VISIBILITY',
+  CHAT = 'CHAT',
+  CHAT_LIST = 'CHAT_LIST',
+  MY_ITEMS = 'MY_ITEMS',
+  SETTINGS = 'SETTINGS',
+  NOTIFICATIONS = 'NOTIFICATIONS',
+  SEARCH = 'SEARCH',
+  CONTACTS = 'CONTACTS'
+}
+
+export interface User {
+  id: string;
+  name: string;
+  avatar: string;
+  location: string;
+  trustScore?: number;
+}
