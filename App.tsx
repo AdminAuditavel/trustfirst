@@ -1139,54 +1139,83 @@ const UpdatePasswordScreen = ({ onComplete }: { onComplete: () => void }) => {
 };
 
 const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin: () => void, onCompleteProfile: () => void, onForgotPassword: () => void }) => {
-  const [mode, setMode] = useState<'magic_link' | 'password'>('password');
+  const [step, setStep] = useState<'email' | 'password'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const TEMP_PASSWORD_PREFIX = "Tc_Probe_";
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     try {
-      if (mode === 'magic_link') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: { shouldCreateUser: true }
-        });
-        if (error) throw error;
-        setMessage('Link mágico enviado! Verifique seu e-mail.');
-      } else {
-        if (isSignUp) {
-          const { error } = await supabase.auth.signUp({
-            email,
-            password,
-          });
-          if (error) throw error;
-          setMessage('Cadastro realizado! Verifique seu e-mail para confirmar.');
+      const probePassword = `${TEMP_PASSWORD_PREFIX}${Date.now()}!Aa`;
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: probePassword,
+      });
+
+      if (error) {
+        if (error.message.includes("already registered") || error.message.includes("exists")) {
+          setIsNewUser(false);
+          setStep('password');
+          setMessage('');
         } else {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (error) throw error;
+          throw error;
         }
+      } else {
+        setIsNewUser(true);
+        setMessage(`Conta nova criada! Enviamos um link de confirmação para ${email}. Verifique seu e-mail.`);
       }
     } catch (err: any) {
-      if (err.message.includes('Invalid login credentials')) {
-        setMessage('E-mail ou senha incorretos.');
-      } else if (err.message.includes('User already registered')) {
-        setMessage('Usuário já cadastrado. Tente fazer login.');
-      } else {
-        setMessage(err.message);
-      }
+      console.error(err);
+      setMessage(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+    } catch (err: any) {
+      setMessage('Senha incorreta. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isNewUser) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6 justify-center items-center text-center">
+        <div className="bg-green-100 dark:bg-green-900/30 p-4 rounded-full mb-6">
+          <span className="material-symbols-outlined text-4xl text-green-600 dark:text-green-400">mail</span>
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Verifique seu E-mail</h2>
+        <p className="text-slate-500 mb-8 max-w-xs">
+          Enviamos um link de confirmação para <strong>{email}</strong>.
+          <br /><br />
+          Clique no link para ativar sua conta.
+        </p>
+        <button onClick={() => { setIsNewUser(false); setStep('email'); }} className="text-primary font-bold hover:underline">Voltar</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
@@ -1196,81 +1225,82 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
           <p className="text-slate-500 dark:text-slate-400">Acesse sua conta para continuar.</p>
         </div>
 
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
-          <button
-            type="button"
-            onClick={() => { setMode('password'); setMessage(''); }}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === 'password' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-          >
-            Senha
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('magic_link'); setMessage(''); }}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === 'magic_link' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-          >
-            Link Mágico
-          </button>
-        </div>
-
-        <form onSubmit={handleAuth} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-mail</label>
-            <input
-              type="email"
-              required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
-              placeholder="seu@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
-          </div>
-
-          {mode === 'password' && (
+        {step === 'email' && (
+          <form onSubmit={handleEmailSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Senha</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">E-mail</label>
+              <input
+                type="email"
+                required
+                autoFocus
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
+
+            {message && (
+              <div className="p-3 rounded-lg text-sm bg-red-50 text-red-600">
+                {message}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+            >
+              {loading ? 'Verificando...' : 'Continuar'}
+            </button>
+          </form>
+        )}
+
+        {step === 'password' && (
+          <form onSubmit={handlePasswordLogin} className="space-y-6">
+            <div className="text-left">
+              <button
+                type="button"
+                onClick={() => setStep('email')}
+                className="text-xs text-primary mb-4 flex items-center gap-1 hover:underline"
+              >
+                <span className="material-symbols-outlined text-[14px]">arrow_back</span>
+                Alterar e-mail ({email})
+              </button>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Senha</label>
+                <button type="button" onClick={onForgotPassword} className="text-xs text-primary hover:underline">
+                  Esqueceu?
+                </button>
+              </div>
               <input
                 type="password"
                 required
+                autoFocus
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
                 placeholder="********"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
-              {!isSignUp && (
-                <div className="flex justify-end mt-1">
-                  <button type="button" onClick={onForgotPassword} className="text-xs text-primary hover:underline">
-                    Esqueceu a senha?
-                  </button>
-                </div>
-              )}
             </div>
-          )}
 
-          {message && (
-            <div className={`p-3 rounded-lg text-sm ${message.includes('confirmar') || message.includes('enviado') || message.includes('realizado') ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-              {message}
-            </div>
-          )}
+            {message && (
+              <div className="p-3 rounded-lg text-sm bg-red-50 text-red-600">
+                {message}
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
-          >
-            {loading ? 'Carregando...' : (mode === 'magic_link' ? 'Enviar Link de Acesso' : (isSignUp ? 'Criar Conta' : 'Entrar'))}
-          </button>
-        </form>
-
-        {mode === 'password' && (
-          <div className="text-center mt-6">
             <button
-              onClick={() => { setIsSignUp(!isSignUp); setMessage(''); }}
-              className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
             >
-              {isSignUp ? 'Já tem uma conta? Faça Login' : 'Não tem conta? Cadastre-se'}
+              {loading ? 'Entrar' : 'Entrar'}
             </button>
-          </div>
+          </form>
         )}
 
         <div className="mt-8 text-center">
@@ -1280,6 +1310,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
     </div>
   );
 };
+
 
 // --- App ---
 
