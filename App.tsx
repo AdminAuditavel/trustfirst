@@ -608,128 +608,159 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
   </div>
 );
 
-const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewState) => void, onSelectUser: (id: string) => void }) => {
-  const [items, setItems] = useState<any[]>([]);
+const HomeScreen = ({ onChangeView, onSelectUser, userAvatar }: { onChangeView: (view: ViewState) => void, onSelectUser: (id: string) => void, userAvatar: string | null }) => {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      // 1. Fetch my visible network (Profiles)
       const { data: usersData } = await supabase.from('visible_users_for_user').select('*');
       if (usersData) setProfiles(usersData);
-
-      // 2. Fetch visible items (Feed)
-      const { data: itemsData } = await supabase.from('visible_items_for_user').select('*').order('created_at', { ascending: false });
-      if (itemsData) setItems(itemsData);
-
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  const getOwner = (id: string) => profiles.find(p => p.id === id) || { id: null, name: 'Unknown', avatar_url: null, last_active_at: null };
-
   return (
-    <main className="max-w-md mx-auto pb-24 pt-20">
-      <header className="fixed top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 w-full max-w-md">
+    <main className="max-w-md mx-auto pb-24 pt-4 min-h-screen bg-[#0d1117] text-white">
+      <header className="fixed top-0 z-50 bg-[#0d1117]/80 backdrop-blur-md w-full max-w-md border-b border-[#30363d]/50">
         <div className="flex items-center p-4 justify-between">
-          <div onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className="flex size-10 shrink-0 items-center justify-center rounded-full overflow-hidden border-2 border-primary/20 cursor-pointer">
-            <div className="bg-center bg-no-repeat aspect-square bg-cover w-full h-full" style={{ backgroundImage: `url("${IMAGES.avatarAlex}")` }}></div>
+          <div onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className="flex size-10 shrink-0 items-center justify-center rounded-full overflow-hidden border border-slate-700 cursor-pointer p-0.5">
+            <div className="bg-center bg-no-repeat aspect-square bg-cover w-full h-full rounded-full" style={{ backgroundImage: `url("${userAvatar || IMAGES.avatarAlex}")` }}></div>
           </div>
-          <h1 className="text-lg font-bold leading-tight tracking-tight flex-1 text-center">Descobrir Pessoas</h1>
+          <h1 className="text-lg font-bold leading-tight tracking-tight flex-1 text-center font-display">Discover People</h1>
           <div className="flex w-10 items-center justify-end">
-            <button onClick={() => onChangeView(ViewState.SEARCH)} className="flex items-center justify-center rounded-full h-10 w-10 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <button onClick={() => onChangeView(ViewState.SEARCH)} className="flex items-center justify-center rounded-full h-10 w-10 text-slate-400">
               <span className="material-symbols-outlined">search</span>
             </button>
           </div>
         </div>
       </header>
 
-      <section>
-        <div className="flex items-center justify-between px-4 pt-6 pb-2">
+      <section className="pt-20">
+        <div className="flex items-center justify-between px-4 pt-6 pb-4">
           <h2 className="text-xl font-bold leading-tight tracking-tight">Da sua rede</h2>
-          <button className="text-primary text-sm font-semibold">Ver todos</button>
+          <button className="text-[#58a6ff] text-sm font-semibold">Ver todos</button>
         </div>
         {loading ? (
           <div className="px-4 py-8 text-center text-slate-500">Carregando sua rede...</div>
-        ) : items.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-slate-900 dark:text-white font-bold mb-2">Seu feed está vazio.</p>
-            <p className="text-slate-500 text-sm mb-4">Adicione contatos ou sincronize sua agenda para ver itens de pessoas confiáveis.</p>
-            <button className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold">Sincronizar Contatos</button>
-          </div>
         ) : (
-          <div className="flex overflow-x-auto gap-4 px-4 py-3 snap-x no-scrollbar">
-            {items.map((item) => {
-              const owner = getOwner(item.owner_id);
-              return (
-                <div key={item.id} onClick={() => { if (owner.id) onSelectUser(owner.id); }} className="flex flex-col gap-3 rounded-xl min-w-[160px] snap-start bg-white dark:bg-slate-900 p-3 shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer transition-transform active:scale-95">
-                  <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg group">
-                    <div className="absolute inset-0 bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-105" style={{ backgroundImage: `url("${IMAGES.itemCamera}")` }}></div>
-                    <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-1 rounded-full text-[10px] font-bold backdrop-blur-sm">R$ {item.price}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-base font-bold leading-normal truncate">{item.title}</p>
-                    <div className="flex items-center gap-2">
-                      <div className="size-5 rounded-full bg-slate-200 bg-cover" style={{ backgroundImage: `url('${owner.avatar_url || IMAGES.avatar1}')` }}></div>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs font-medium truncate">{owner.name}</p>
+          <div className="flex overflow-x-auto gap-4 px-4 py-1 snap-x no-scrollbar">
+            {profiles.slice(0, 5).map((p, i) => (
+              <div key={p.id || i} onClick={() => onSelectUser(p.id)} className="flex flex-col rounded-2xl min-w-[190px] snap-start bg-[#161b22] overflow-hidden border border-[#30363d] cursor-pointer transition-transform active:scale-95 group">
+                <div className="relative w-full aspect-[4/5] overflow-hidden">
+                  <div className="absolute inset-0 bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-105" style={{ backgroundImage: `url("${p.avatar_url || IMAGES.avatar1}")` }}></div>
+                  <div className="absolute top-2 right-2 bg-[#2188ff] text-white px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider backdrop-blur-md shadow-lg">Ativo agora</div>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <p className="text-base font-bold truncate pr-2">{p.name || 'User'}</p>
+                    <div className="flex items-center gap-1 bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d]">
+                      <span className="material-symbols-outlined text-[12px] text-[#58a6ff]" style={{ fontVariationSettings: "'FILL' 1" }}>diversity_3</span>
+                      <span className="text-[10px] font-bold">5</span>
                     </div>
                   </div>
+                  <p className="text-slate-500 text-[11px] flex items-center gap-1 truncate">
+                    <span className="material-symbols-outlined text-[14px]">location_on</span> {p.location || 'Brasil'}
+                  </p>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         )}
       </section>
 
-      <section className="mt-4">
-        <div className="px-4 py-4">
+      <section className="mt-8 px-4">
+        <div className="py-2 mb-4">
           <h2 className="text-xl font-bold leading-tight tracking-tight">Conexões em comum</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gente que seus amigos conhecem</p>
+          <p className="text-sm text-slate-500 mt-1">Gente que seus amigos conhecem</p>
         </div>
-        <div className="space-y-1">
-          <div
-            onClick={() => {
-              const p = profiles.find(u => u.name?.includes('Mariana'));
-              if (p) onSelectUser(p.id);
-            }}
-            className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/50 cursor-pointer"
-          >
-            <div className="relative">
-              <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-16 w-16 border-2 border-slate-200 dark:border-slate-800 shadow-sm" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD6IMFbpl-hK-Fgn8HvyZtORf7UsTCRV-i79J2iTE7Gcy0foVZixF_NSYNrn45ELDFuCgc0Q99OZHQ34J3Guqp35mUrZDxuh64wTQp_hSab6rBVIO1o2JSivzhaWbUS5jAScw2zxSo-T6-zHkCukqH-v5MI0YCvaT_4Qr4waxzH8VunuHjkaQhudZnfKldaBfvCiVAyLr1JZRDxgCtGmAW84WEA4la851zt5Ry5AhQcadygXScC-d2Jlk6tUkPAMD4QAqGhVi-7qL4")' }}></div>
-              <div className="absolute -bottom-1 -right-1 bg-primary text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-background-dark"><span className="material-symbols-outlined text-[12px]">check_circle</span></div>
-            </div>
-            <div className="flex flex-1 flex-col justify-center gap-0.5">
-              <div className="flex items-center gap-2">
-                <p className="text-base font-bold">Mariana Rios</p>
-                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold">3 OFERTAS</span>
+        <div className="space-y-4 pb-12 text-white">
+          {profiles.map((p, i) => (
+            <div key={p.id || i} className="flex items-center gap-4 py-2 border-b border-[#30363d]/50 last:border-none">
+              <div className="relative shrink-0">
+                <div className="size-16 rounded-full bg-cover bg-center border-2 border-[#30363d]" style={{ backgroundImage: `url("${p.avatar_url || IMAGES.avatar1}")` }}></div>
+                <div className="absolute -bottom-0.5 -right-0.5 bg-[#0d1117] p-0.5 rounded-full border border-[#0d1117]">
+                  <span className="material-symbols-outlined text-[#2188ff] text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+                </div>
               </div>
-              <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">group</span>12 contatos em comum</p>
-              <p className="text-slate-400 dark:text-slate-500 text-xs">Belo Horizonte, MG</p>
-            </div>
-          </div>
-          <div
-            onClick={() => {
-              const p = profiles.find(u => u.name?.includes('Ricardo'));
-              if (p) onSelectUser(p.id);
-            }}
-            className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
-          >
-            <div className="relative">
-              <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-16 w-16 border-2 border-slate-200 dark:border-slate-800 shadow-sm" style={{ backgroundImage: `url("${IMAGES.avatarRicardo}")` }}></div>
-            </div>
-            <div className="flex flex-1 flex-col justify-center gap-0.5">
-              <div className="flex items-center gap-2">
-                <p className="text-base font-bold">Ricardo Mendes</p>
-                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold">7 OFERTAS</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-base font-bold truncate">{p.name || 'User'}</p>
+                  <span className="bg-[#161b22] text-[#58a6ff] text-[9px] font-bold px-1.5 py-0.5 rounded uppercase border border-[#30363d] tracking-tighter whitespace-nowrap">3 OFERTAS</span>
+                </div>
+                <p className="text-slate-500 text-xs flex items-center gap-1 mb-1">
+                  <span className="material-symbols-outlined text-[16px]">group</span> 12 contatos em comum
+                </p>
+                <p className="text-slate-600 text-[11px] font-medium">{p.location || 'Localização'}</p>
               </div>
-              <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">group</span>8 contatos em comum</p>
-              <p className="text-slate-400 dark:text-slate-500 text-xs">Porto Alegre, RS</p>
+              <button onClick={() => onSelectUser(p.id)} className="shrink-0 bg-[#1c2128] text-white px-4 py-1.5 rounded-xl text-xs font-bold border border-[#30363d] shadow-sm hover:bg-[#21262d] transition-colors">Ver perfil</button>
             </div>
-          </div>
+          ))}
+        </div>
+
+        <div className="py-8 flex flex-col items-center justify-center text-slate-500 gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Puxar para carregar mais</span>
+          <span className="material-symbols-outlined animate-bounce">expand_more</span>
         </div>
       </section>
+    </main>
+  );
+};
+
+const MarketplaceScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewState) => void, onSelectUser: (id: string) => void }) => {
+  const [items, setItems] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: usersData } = await supabase.from('visible_users_for_user').select('*');
+      if (usersData) setProfiles(usersData);
+      const { data: itemsData } = await supabase.from('visible_items_for_user').select('*').order('created_at', { ascending: false });
+      if (itemsData) setItems(itemsData);
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  const getOwner = (id: string) => profiles.find(p => p.id === id) || { id: null, name: 'Unknown', avatar_url: null };
+
+  return (
+    <main className="max-w-md mx-auto pb-32 min-h-screen bg-[#0d1117] text-white">
+      <header className="fixed top-0 z-50 bg-[#0d1117]/80 backdrop-blur-md w-full max-w-md border-b border-[#30363d]/50">
+        <div className="flex items-center p-4 justify-between">
+          <h1 className="text-xl font-bold">Marketplace</h1>
+          <button className="text-slate-400"><span className="material-symbols-outlined">search</span></button>
+        </div>
+      </header>
+
+      <div className="pt-20 px-4 grid grid-cols-2 gap-4 pb-12">
+        {loading ? [...Array(4)].map((_, i) => <div key={i} className="aspect-square bg-[#161b22] rounded-2xl animate-pulse"></div>) :
+          items.map(item => {
+            const owner = getOwner(item.owner_id);
+            return (
+              <div key={item.id} onClick={() => onChangeView(ViewState.PRODUCT_DETAIL)} className="flex flex-col gap-2 cursor-pointer group">
+                <div className="relative aspect-square rounded-2xl overflow-hidden border border-[#30363d] bg-[#161b22]">
+                  <div className="absolute inset-0 bg-center bg-cover transition-transform group-hover:scale-105" style={{ backgroundImage: `url("${IMAGES.itemCamera}")` }}></div>
+                  <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md p-1.5 rounded-full hover:bg-black/60 transition-colors">
+                    <span className="material-symbols-outlined text-[18px] text-white">favorite</span>
+                  </div>
+                </div>
+                <div className="px-1">
+                  <p className="font-bold text-sm truncate">{item.title}</p>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-[#58a6ff] font-bold text-sm">R$ {item.price}</p>
+                    <div className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); if (owner.id) onSelectUser(owner.id); }}>
+                      <div className="size-4 rounded-full bg-cover bg-center border border-[#30363d]" style={{ backgroundImage: `url("${owner.avatar_url || IMAGES.avatar1}")` }}></div>
+                      <p className="text-[10px] text-slate-500 truncate max-w-[60px]">{owner.name?.split(' ')[0]}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+      </div>
     </main>
   );
 };
@@ -813,41 +844,47 @@ const UserProfileScreen = ({ onChangeView, onBack, targetUserId }: { onChangeVie
     fetchData();
   }, [targetUserId]);
 
-  // Redirect to professional profile view if tab changes
-  React.useEffect(() => {
-    if (tab === 'SERVICES') {
-      onChangeView(ViewState.PROFILE_PROFESSIONAL);
-    }
-  }, [tab, onChangeView]);
-
   return (
-    <div className="max-w-[480px] mx-auto min-h-screen flex flex-col relative pb-24">
-      <div className="sticky top-0 z-50 flex items-center bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md p-4 pb-2 justify-between">
-        <div onClick={onBack} className="text-slate-900 dark:text-white flex size-12 shrink-0 items-center cursor-pointer">
+    <div className="max-w-[480px] mx-auto min-h-screen flex flex-col relative pb-24 bg-[#0d1117] text-white">
+      <div className="sticky top-0 z-50 flex items-center bg-[#0d1117]/80 backdrop-blur-md p-4 pb-2 justify-between">
+        <div onClick={onBack} className="text-white flex size-12 shrink-0 items-center cursor-pointer">
           <span className="material-symbols-outlined">arrow_back_ios</span>
         </div>
-        <h2 className="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Perfil</h2>
+        <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center font-display">Perfil</h2>
         <div className="flex w-12 items-center justify-end">
-          <button className="flex items-center justify-center rounded-lg h-12 text-slate-900 dark:text-white"><span className="material-symbols-outlined">more_horiz</span></button>
+          <button className="flex items-center justify-center rounded-lg h-12 text-white transition-opacity active:opacity-50"><span className="material-symbols-outlined">more_horiz</span></button>
         </div>
       </div>
+
       <div className="flex p-4 flex-col items-center">
         <div className="relative mb-4">
-          <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-4 border-primary/20" style={{ backgroundImage: `url("${user?.avatar_url || IMAGES.avatarAlex}")` }}></div>
-          {isOwnProfile && <div className="absolute bottom-1 right-1 bg-green-500 size-6 rounded-full border-4 border-background-light dark:border-background-dark"></div>}
+          <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-32 border-4 border-[#30363d]/50" style={{ backgroundImage: `url("${user?.avatar_url || IMAGES.avatarAlex}")` }}></div>
+          <div className="absolute bottom-2 right-2 bg-[#22c55e] size-5 rounded-full border-4 border-[#0d1117]"></div>
         </div>
-        <div className="flex items-center gap-1"><p className="text-slate-900 dark:text-white text-[22px] font-bold text-center">{user?.name || 'Usuário'}</p><span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></div>
-        <p className="text-slate-500 dark:text-[#9dabb9] text-base text-center">{user?.location || 'Localização não definida'}</p>
+
+        <div className="flex items-center gap-1.5 mb-1">
+          <p className="text-white text-[24px] font-bold text-center font-display">{user?.name || 'Usuário'}</p>
+          <span className="material-symbols-outlined text-[#2188ff] text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+        </div>
+
+        <p className="text-slate-400 text-sm text-center mb-3">
+          {user?.location || 'São Paulo, SP'} • <span className="text-[#22c55e]">Ativo agora</span>
+        </p>
+
+        <div className="bg-[#1c2128] border border-[#30363d] rounded-full px-4 py-1.5 flex items-center gap-2 mb-6">
+          <span className="material-symbols-outlined text-[#2188ff] text-[18px]">verified_user</span>
+          <span className="text-[#2188ff] text-sm font-bold tracking-tight">Trust Score: 98%</span>
+        </div>
 
         {isOwnProfile && (
-          <div className="mt-4 flex gap-3">
-            <button onClick={() => onChangeView(ViewState.EDIT_PROFILE)} className="px-5 py-2.5 bg-primary text-white rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all">Editar Perfil</button>
+          <div className="mb-6 flex gap-3">
+            <button onClick={() => onChangeView(ViewState.EDIT_PROFILE)} className="px-6 py-2.5 bg-[#2188ff] text-white rounded-full text-sm font-bold shadow-lg shadow-blue-500/20 hover:opacity-90 transition-all">Editar Perfil</button>
             <button
               onClick={async () => {
                 await supabase.auth.signOut();
                 window.location.reload();
               }}
-              className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white rounded-full text-sm font-bold shadow-sm hover:opacity-80 transition-all flex items-center gap-1"
+              className="px-6 py-2.5 bg-[#21262d] text-white rounded-full text-sm font-bold border border-[#30363d] hover:bg-[#30363d] transition-all flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-sm">logout</span> Sair
             </button>
@@ -856,52 +893,77 @@ const UserProfileScreen = ({ onChangeView, onBack, targetUserId }: { onChangeVie
       </div>
 
       <div className="px-4 py-2">
-        <div className="bg-slate-100 dark:bg-slate-800/50 rounded-xl p-4 flex flex-col items-center gap-3">
-          <p className="text-slate-500 dark:text-[#9dabb9] text-sm font-medium">12 conexões em comum</p>
-          <div className="flex -space-x-2">
-            <div className="size-8 rounded-full ring-2 ring-background-dark bg-cover" style={{ backgroundImage: `url("${IMAGES.avatar1}")` }}></div>
-            <div className="size-8 rounded-full ring-2 ring-background-dark bg-cover" style={{ backgroundImage: `url("${IMAGES.avatar2}")` }}></div>
-            <div className="size-8 rounded-full ring-2 ring-background-dark bg-primary text-white flex items-center justify-center text-xs font-bold">+9</div>
+        <div className="bg-[#161b22] dark:bg-[#161b22] border border-[#30363d] rounded-2xl p-4 flex flex-col items-center gap-4">
+          <p className="text-slate-400 text-sm font-medium">12 conexões em comum</p>
+          <div className="flex -space-x-3">
+            <div className="size-10 rounded-full ring-4 ring-[#161b22] bg-cover bg-center border border-[#30363d]" style={{ backgroundImage: `url("${IMAGES.avatar1}")` }}></div>
+            <div className="size-10 rounded-full ring-4 ring-[#161b22] bg-cover bg-center border border-[#30363d]" style={{ backgroundImage: `url("${IMAGES.avatar2}")` }}></div>
+            <div className="size-10 rounded-full ring-4 ring-[#161b22] bg-[#2188ff] text-white flex items-center justify-center text-xs font-bold border border-[#30363d]">+9</div>
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-4">
-        <div className="flex items-center justify-between mb-3"><h3 className="text-slate-900 dark:text-white text-lg font-bold">Notas humanas</h3><span className="text-primary text-sm font-semibold">Ver todas</span></div>
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          <div className="min-w-[200px] bg-slate-100 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-            <p className="text-slate-700 dark:text-slate-300 text-sm italic">"O {user?.name?.split(' ')[0] || 'Usuário'} é incrível, sempre cuidadoso com os equipamentos."</p>
+      <div className="px-4 py-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white text-xl font-bold font-display">Notas humanas</h3>
+          <span className="text-[#58a6ff] text-sm font-semibold">Ver todas</span>
+        </div>
+        <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+          <div className="min-w-[280px] bg-[#161b22] p-6 rounded-2xl border border-[#30363d] flex flex-col gap-4">
+            <p className="text-white text-[15px] leading-relaxed italic">"O {user?.name?.split(' ')[0] || 'Alex'} é um vizinho incrível, sempre cuidadoso com os equipamentos."</p>
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-full bg-cover bg-center" style={{ backgroundImage: `url("${IMAGES.avatarJuliana}")` }}></div>
+              <p className="text-slate-400 text-xs font-medium">Mariana L.</p>
+            </div>
+          </div>
+          <div className="min-w-[280px] bg-[#161b22] p-6 rounded-2xl border border-[#30363d] flex flex-col gap-4">
+            <p className="text-white text-[15px] leading-relaxed italic">"Negociação super transparente. Recomendo muito!"</p>
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-full bg-cover bg-center" style={{ backgroundImage: `url("${IMAGES.avatarRicardo}")` }}></div>
+              <p className="text-slate-400 text-xs font-medium">Ricardo T.</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex px-4 py-3 sticky top-[64px] bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm z-40">
-        <div className="flex h-12 flex-1 items-center justify-center rounded-xl bg-slate-200 dark:bg-[#283039] p-1.5">
-          <button onClick={() => setTab('OFFERS')} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-sm font-bold transition-all ${tab === 'OFFERS' ? 'bg-background-light dark:bg-background-dark shadow-sm text-primary' : 'text-slate-500 dark:text-[#9dabb9]'}`}>Ofertas</button>
-          <button onClick={() => setTab('SERVICES')} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-sm font-bold transition-all ${tab === 'SERVICES' ? 'bg-background-light dark:bg-background-dark shadow-sm text-primary' : 'text-slate-500 dark:text-[#9dabb9]'}`}>Serviços</button>
+      <div className="flex px-4 py-3 sticky top-[64px] bg-[#0d1117]/95 backdrop-blur-sm z-40 border-y border-[#30363d]/30">
+        <div className="flex h-12 flex-1 items-center justify-center rounded-xl bg-[#161b22] p-1.5 border border-[#30363d]">
+          <button onClick={() => setTab('OFFERS')} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-sm font-bold transition-all ${tab === 'OFFERS' ? 'bg-[#21262d] shadow-sm text-[#58a6ff]' : 'text-slate-500'}`}>Ofertas</button>
+          <button onClick={() => setTab('SERVICES')} className={`flex cursor-pointer h-full grow items-center justify-center rounded-lg px-2 text-sm font-bold transition-all ${tab === 'SERVICES' ? 'bg-[#21262d] shadow-sm text-[#58a6ff]' : 'text-slate-500'}`}>Serviços</button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 p-4">
-        <div onClick={() => onChangeView(ViewState.PRODUCT_DETAIL)} className="flex flex-col gap-3 pb-3 cursor-pointer">
-          <div className="relative">
-            <div className="w-full bg-center bg-no-repeat aspect-square bg-cover rounded-xl shadow-sm" style={{ backgroundImage: `url("${IMAGES.itemCamera}")` }}></div>
-            <div className="absolute top-2 right-2 bg-background-dark/80 backdrop-blur-sm p-1.5 rounded-full flex items-center justify-center"><span className="material-symbols-outlined text-sm text-white">favorite</span></div>
+      <div className="grid grid-cols-2 gap-4 p-4 pb-32">
+        <div onClick={() => onChangeView(ViewState.PRODUCT_DETAIL)} className="flex flex-col gap-3 pb-3 cursor-pointer group">
+          <div className="relative aspect-square rounded-2xl overflow-hidden border border-[#30363d] bg-[#161b22]">
+            <div className="absolute inset-0 bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: `url("${IMAGES.itemCamera}")` }}></div>
+            <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md p-2 rounded-full shadow-lg">
+              <span className="material-symbols-outlined text-[18px] text-white">favorite</span>
+            </div>
           </div>
-          <div><p className="text-slate-900 dark:text-white text-base font-bold">Câmera Vintage</p><p className="text-primary text-sm font-bold">R$ 450</p></div>
+          <div className="px-1">
+            <p className="text-white text-base font-bold truncate">Câmera Vintage</p>
+            <p className="text-[#58a6ff] text-base font-bold">R$ 450</p>
+          </div>
         </div>
-        <div className="flex flex-col gap-3 pb-3">
-          <div className="relative">
-            <div className="w-full bg-center bg-no-repeat aspect-square bg-cover rounded-xl shadow-sm" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBvtG8hNVtscbFJbNoF4nXjQtcRyIbUcpAs-V0J3gYI0mgyNzuw19kLZI1LwJb386_KWInUXebQBD_QWNyi8zvbpD12dXuL6f6YzK-ka7XSV5P7xK7kh7EsgATdCUd79sRw0KLl0Wj9Td_bmmo92wi2ilVzkr4D-bDx54BS8mWHpHM9YwkpM-UHGXuiPgVq79D5CfqUbc5HF8hU7qb0qhHJYSY3NzBZTplbo5NbmXfN8fcKM-HhBQXd0nGpkl3npsjtwiHPd_BZSSs")' }}></div>
+        <div onClick={() => onChangeView(ViewState.PRODUCT_DETAIL)} className="flex flex-col gap-3 pb-3 group cursor-pointer">
+          <div className="relative aspect-square rounded-2xl overflow-hidden border border-[#30363d] bg-[#161b22]">
+            <div className="absolute inset-0 bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: `url("${IMAGES.itemBike}")` }}></div>
+            <div className="absolute top-2 right-2 bg-black/40 backdrop-blur-md p-2 rounded-full">
+              <span className="material-symbols-outlined text-[18px] text-white">favorite</span>
+            </div>
           </div>
-          <div><p className="text-slate-900 dark:text-white text-base font-bold">Bicicleta Urbana</p><p className="text-primary text-sm font-bold">R$ 1.200</p></div>
+          <div className="px-1">
+            <p className="text-white text-base font-bold truncate">Bicicleta Urbana</p>
+            <p className="text-[#58a6ff] text-base font-bold">R$ 1.200</p>
+          </div>
         </div>
       </div>
 
       {!isOwnProfile && (
-        <div className="fixed bottom-24 left-0 right-0 px-6 max-w-[480px] mx-auto z-40">
-          <button onClick={() => onChangeView(ViewState.CHAT)} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>chat_bubble</span>Falar com {user?.name?.split(' ')[0] || 'Vendedor'}
+        <div className="fixed bottom-28 left-0 right-0 px-6 max-w-[480px] mx-auto z-40">
+          <button onClick={() => onChangeView(ViewState.CHAT)} className="w-full bg-[#2188ff] hover:bg-[#2188ff]/90 text-white font-bold py-4 rounded-xl shadow-xl shadow-blue-900/40 flex items-center justify-center gap-3 transition-transform active:scale-95">
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>chat_bubble</span> Falar com {user?.name?.split(' ')[0] || 'Vendedor'}
           </button>
         </div>
       )}
@@ -1401,40 +1463,42 @@ const SettingsScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => v
 
 const BottomNav = ({ activeView, onChangeView, userAvatar }: { activeView: ViewState, onChangeView: (view: ViewState) => void, userAvatar: string | null }) => {
   // Only show nav on certain screens
-  const showNav = [ViewState.HOME, ViewState.MY_ITEMS, ViewState.SETTINGS, ViewState.PROFILE_PERSONAL, ViewState.CHAT_LIST, ViewState.NOTIFICATIONS, ViewState.CONTACTS, ViewState.SEARCH].includes(activeView);
+  const showNav = [ViewState.HOME, ViewState.MARKETPLACE, ViewState.MY_ITEMS, ViewState.SETTINGS, ViewState.PROFILE_PERSONAL, ViewState.CHAT_LIST, ViewState.NOTIFICATIONS, ViewState.CONTACTS, ViewState.SEARCH].includes(activeView);
   if (!showNav) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-background-dark/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 pb-6 pt-2 px-2 z-50">
-      <div className="max-w-md mx-auto flex justify-between items-center">
-        <button onClick={() => onChangeView(ViewState.HOME)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.HOME ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.HOME ? "'FILL' 1" : "'FILL' 0" }}>home</span>
-          <span className="text-[10px] font-bold">Início</span>
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#161b22]/95 backdrop-blur-xl border-t border-[#30363d] pb-8 pt-2 px-4 z-50">
+      <div className="max-w-md mx-auto flex justify-between items-center relative gap-0">
+        <button onClick={() => onChangeView(ViewState.HOME)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.HOME ? 'text-[#58a6ff]' : 'text-slate-500'}`}>
+          <span className="material-symbols-outlined" style={{ fontSize: '24px', fontVariationSettings: activeView === ViewState.HOME ? "'FILL' 1" : "'FILL' 0" }}>person_search</span>
+          <span className="text-[10px] font-bold">Descobrir</span>
         </button>
 
-        <button onClick={() => onChangeView(ViewState.SEARCH)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.SEARCH ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.SEARCH ? "'FILL' 1" : "'FILL' 0" }}>search</span>
-          <span className="text-[10px] font-bold">Explorar</span>
+        <button onClick={() => onChangeView(ViewState.MARKETPLACE)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.MARKETPLACE ? 'text-[#58a6ff]' : 'text-slate-500'}`}>
+          <span className="material-symbols-outlined" style={{ fontSize: '24px', fontVariationSettings: activeView === ViewState.MARKETPLACE ? "'FILL' 1" : "'FILL' 0" }}>shopping_bag</span>
+          <span className="text-[10px] font-bold">Marketplace</span>
         </button>
 
-        <button onClick={() => onChangeView(ViewState.MY_ITEMS)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.MY_ITEMS ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.MY_ITEMS ? "'FILL' 1" : "'FILL' 0" }}>inventory_2</span>
-          <span className="text-[10px] font-bold">Meus Itens</span>
+        {/* Prominent Add Button */}
+        <div className="w-1/5 flex justify-center -mt-10">
+          <button onClick={() => onChangeView(ViewState.VISIBILITY)} className="bg-[#2188ff] text-white size-14 rounded-full shadow-lg shadow-blue-500/20 flex items-center justify-center border-4 border-[#0d1117] transition-transform active:scale-95 z-20">
+            <span className="material-symbols-outlined text-[32px]">add</span>
+          </button>
+        </div>
+
+        <button onClick={() => onChangeView(ViewState.CHAT_LIST)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${[ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? 'text-[#58a6ff]' : 'text-slate-500'}`}>
+          <span className="material-symbols-outlined" style={{ fontSize: '24px', fontVariationSettings: [ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? "'FILL' 1" : "'FILL' 0" }}>chat_bubble</span>
+          <span className="text-[10px] font-bold">Mensagens</span>
         </button>
 
-        <button onClick={() => onChangeView(ViewState.CHAT_LIST)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${[ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: [ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? "'FILL' 1" : "'FILL' 0" }}>chat_bubble</span>
-          <span className="text-[10px] font-bold">Conversas</span>
-        </button>
-
-        <button onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${[ViewState.PROFILE_PERSONAL, ViewState.SETTINGS].includes(activeView) ? 'text-primary' : 'text-slate-400'}`}>
-          <div className={`size-6 rounded-full bg-cover bg-center border-2 ${[ViewState.PROFILE_PERSONAL, ViewState.SETTINGS].includes(activeView) ? 'border-primary' : 'border-transparent'}`} style={{ backgroundImage: `url("${userAvatar || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCVdFllcYvR_SQdhiLy6q6oJFyrQF6rEUOF1t-YNSD4sADJPl-Xgc1SE_0AOn6dHxGfLIHDzs19LXKFvPyCf2QLjTFEU9Pb8jpHKkgFXdw1LRNojzyi7dWZqgXHs9ZKX9dueXN6KJh1tC4b22ppQZXyZ_kS720EkJUVzW2P9oTjsbjWKQUo8RW-kbhcm0lKGW30UyhA3aBtCoJHWu0btWdjZI5Fa7dgpAkINIIFkBcIAciFz0ynwaw5gUWmyagrTsV2out7jYi5LwA'}")` }}></div>
-          <span className="text-[10px] font-bold">Perfil</span>
+        <button onClick={() => onChangeView(ViewState.NOTIFICATIONS)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.NOTIFICATIONS ? 'text-[#58a6ff]' : 'text-slate-500'}`}>
+          <span className="material-symbols-outlined" style={{ fontSize: '24px', fontVariationSettings: activeView === ViewState.NOTIFICATIONS ? "'FILL' 1" : "'FILL' 0" }}>notifications</span>
+          <span className="text-[10px] font-bold">Avisos</span>
         </button>
       </div>
     </nav>
   );
-}
+};
 
 // --- Main App Component ---
 
@@ -1796,7 +1860,7 @@ const App: React.FC = () => {
 
   const handleViewChange = (targetView: ViewState) => {
     const protectedRoutes = [
-      ViewState.HOME, ViewState.PROFILE_PERSONAL, ViewState.PROFILE_PROFESSIONAL,
+      ViewState.HOME, ViewState.MARKETPLACE, ViewState.PROFILE_PERSONAL, ViewState.PROFILE_PROFESSIONAL,
       ViewState.MY_ITEMS, ViewState.CHAT_LIST, ViewState.CHAT, ViewState.SETTINGS,
       ViewState.NOTIFICATIONS, ViewState.CONTACTS, ViewState.SEARCH, ViewState.EDIT_PROFILE,
       ViewState.VISIBILITY
@@ -1815,7 +1879,7 @@ const App: React.FC = () => {
 
     if (targetView === ViewState.PROFILE_PERSONAL) {
       setSelectedUserId(null);
-    } else if ([ViewState.HOME, ViewState.MY_ITEMS, ViewState.CHAT_LIST, ViewState.NOTIFICATIONS, ViewState.SEARCH].includes(targetView)) {
+    } else if ([ViewState.HOME, ViewState.MARKETPLACE, ViewState.MY_ITEMS, ViewState.CHAT_LIST, ViewState.NOTIFICATIONS, ViewState.SEARCH].includes(targetView)) {
       setSelectedUserId(null);
     }
 
@@ -1847,6 +1911,12 @@ const App: React.FC = () => {
         return <PrivacyScreen onSync={() => setView(ViewState.HOME)} onBack={() => setView(ViewState.WELCOME)} />;
       case ViewState.HOME:
         return <HomeScreen
+          onChangeView={handleViewChange}
+          onSelectUser={(id) => { setSelectedUserId(id); setView(ViewState.PROFILE_PERSONAL); }}
+          userAvatar={userAvatar}
+        />;
+      case ViewState.MARKETPLACE:
+        return <MarketplaceScreen
           onChangeView={handleViewChange}
           onSelectUser={(id) => { setSelectedUserId(id); setView(ViewState.PROFILE_PERSONAL); }}
         />;
@@ -1888,6 +1958,7 @@ const App: React.FC = () => {
         return <HomeScreen
           onChangeView={handleViewChange}
           onSelectUser={(id) => { setSelectedUserId(id); setView(ViewState.PROFILE_PERSONAL); }}
+          userAvatar={userAvatar}
         />;
     }
   };
