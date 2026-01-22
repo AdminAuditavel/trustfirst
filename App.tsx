@@ -59,6 +59,14 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
     }
   }, [selectedUf]);
 
+  const hashPhone = async (phone: string) => {
+    const msgBuffer = new TextEncoder().encode(phone);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -68,11 +76,15 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      const phoneValue = phone || user.phone || '';
+      const phoneHash = await hashPhone(phoneValue.replace(/\D/g, '')); // Hash only digits
+
       const updates = {
         id: user.id,
         name,
         location: `${selectedCity} - ${selectedUf}`,
-        phone: phone || user.phone || '',
+        phone: phoneValue,
+        phone_hash: phoneHash,
         updated_at: new Date().toISOString(),
       };
 
