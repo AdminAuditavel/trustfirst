@@ -2000,7 +2000,17 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white transition-colors duration-300">
       {renderView()}
-      <BottomNav activeView={view} onChangeView={handleViewChange} userAvatar={userAvatar} />
+      {!([
+        ViewState.WELCOME,
+        ViewState.AUTH,
+        ViewState.FORGOT_PASSWORD,
+        ViewState.UPDATE_PASSWORD,
+        ViewState.COMPLETE_PROFILE,
+        ViewState.EDIT_PROFILE,
+        ViewState.PRIVACY
+      ].includes(view)) && (
+          <BottomNav activeView={view} onChangeView={handleViewChange} userAvatar={userAvatar} />
+        )}
     </div>
   );
 };
