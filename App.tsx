@@ -608,7 +608,7 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
   </div>
 );
 
-const HomeScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => void }) => {
+const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewState) => void, onSelectUser: (id: string) => void }) => {
   const [items, setItems] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -628,7 +628,7 @@ const HomeScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => void 
     fetchData();
   }, []);
 
-  const getOwner = (id: string) => profiles.find(p => p.id === id) || { name: 'Unknown', avatar_url: null, last_active_at: null };
+  const getOwner = (id: string) => profiles.find(p => p.id === id) || { id: null, name: 'Unknown', avatar_url: null, last_active_at: null };
 
   return (
     <main className="max-w-md mx-auto pb-24 pt-20">
@@ -664,7 +664,7 @@ const HomeScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => void 
             {items.map((item) => {
               const owner = getOwner(item.owner_id);
               return (
-                <div key={item.id} onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className="flex flex-col gap-3 rounded-xl min-w-[160px] snap-start bg-white dark:bg-slate-900 p-3 shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer transition-transform active:scale-95">
+                <div key={item.id} onClick={() => { if (owner.id) onSelectUser(owner.id); }} className="flex flex-col gap-3 rounded-xl min-w-[160px] snap-start bg-white dark:bg-slate-900 p-3 shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer transition-transform active:scale-95">
                   <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg group">
                     <div className="absolute inset-0 bg-center bg-no-repeat bg-cover transition-transform duration-500 group-hover:scale-105" style={{ backgroundImage: `url("${IMAGES.itemCamera}")` }}></div>
                     <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-1 rounded-full text-[10px] font-bold backdrop-blur-sm">R$ {item.price}</div>
@@ -689,7 +689,13 @@ const HomeScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => void 
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gente que seus amigos conhecem</p>
         </div>
         <div className="space-y-1">
-          <div onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/50 cursor-pointer">
+          <div
+            onClick={() => {
+              const p = profiles.find(u => u.name?.includes('Mariana'));
+              if (p) onSelectUser(p.id);
+            }}
+            className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/50 cursor-pointer"
+          >
             <div className="relative">
               <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-16 w-16 border-2 border-slate-200 dark:border-slate-800 shadow-sm" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD6IMFbpl-hK-Fgn8HvyZtORf7UsTCRV-i79J2iTE7Gcy0foVZixF_NSYNrn45ELDFuCgc0Q99OZHQ34J3Guqp35mUrZDxuh64wTQp_hSab6rBVIO1o2JSivzhaWbUS5jAScw2zxSo-T6-zHkCukqH-v5MI0YCvaT_4Qr4waxzH8VunuHjkaQhudZnfKldaBfvCiVAyLr1JZRDxgCtGmAW84WEA4la851zt5Ry5AhQcadygXScC-d2Jlk6tUkPAMD4QAqGhVi-7qL4")' }}></div>
               <div className="absolute -bottom-1 -right-1 bg-primary text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-background-dark"><span className="material-symbols-outlined text-[12px]">check_circle</span></div>
@@ -703,7 +709,13 @@ const HomeScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => void 
               <p className="text-slate-400 dark:text-slate-500 text-xs">Belo Horizonte, MG</p>
             </div>
           </div>
-          <div onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer">
+          <div
+            onClick={() => {
+              const p = profiles.find(u => u.name?.includes('Ricardo'));
+              if (p) onSelectUser(p.id);
+            }}
+            className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+          >
             <div className="relative">
               <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-16 w-16 border-2 border-slate-200 dark:border-slate-800 shadow-sm" style={{ backgroundImage: `url("${IMAGES.avatarRicardo}")` }}></div>
             </div>
@@ -781,20 +793,25 @@ const ContactsScreen = ({ onBack, onChat }: { onBack: () => void, onChat: () => 
   );
 };
 
-const UserProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: ViewState) => void, onBack: () => void }) => {
+const UserProfileScreen = ({ onChangeView, onBack, targetUserId }: { onChangeView: (view: ViewState) => void, onBack: () => void, targetUserId: string | null }) => {
   const [tab, setTab] = useState<'OFFERS' | 'SERVICES'>('OFFERS');
-
   const [user, setUser] = useState<any>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   React.useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase.from('users').select('*').eq('id', user.id).single().then(({ data }) => {
-          if (data) setUser(data);
-        })
-      }
-    })
-  }, []);
+    const fetchData = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const idToFetch = targetUserId || currentUser?.id;
+
+      if (!idToFetch) return;
+
+      setIsOwnProfile(currentUser?.id === idToFetch);
+
+      const { data } = await supabase.from('users').select('*').eq('id', idToFetch).single();
+      if (data) setUser(data);
+    };
+    fetchData();
+  }, [targetUserId]);
 
   // Redirect to professional profile view if tab changes
   React.useEffect(() => {
@@ -817,13 +834,25 @@ const UserProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: View
       <div className="flex p-4 flex-col items-center">
         <div className="relative mb-4">
           <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-4 border-primary/20" style={{ backgroundImage: `url("${user?.avatar_url || IMAGES.avatarAlex}")` }}></div>
-          <div className="absolute bottom-1 right-1 bg-green-500 size-6 rounded-full border-4 border-background-light dark:border-background-dark"></div>
+          {isOwnProfile && <div className="absolute bottom-1 right-1 bg-green-500 size-6 rounded-full border-4 border-background-light dark:border-background-dark"></div>}
         </div>
-        <div className="flex items-center gap-1"><p className="text-slate-900 dark:text-white text-[22px] font-bold text-center">{user?.name || 'Seu Nome'}</p><span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></div>
+        <div className="flex items-center gap-1"><p className="text-slate-900 dark:text-white text-[22px] font-bold text-center">{user?.name || 'Usuário'}</p><span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></div>
         <p className="text-slate-500 dark:text-[#9dabb9] text-base text-center">{user?.location || 'Localização não definida'}</p>
-        <div className="mt-4">
-          <button onClick={() => onChangeView(ViewState.EDIT_PROFILE)} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white rounded-full text-sm font-bold shadow-sm hover:opacity-80 transition-all">Editar Perfil</button>
-        </div>
+
+        {isOwnProfile && (
+          <div className="mt-4 flex gap-3">
+            <button onClick={() => onChangeView(ViewState.EDIT_PROFILE)} className="px-5 py-2.5 bg-primary text-white rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all">Editar Perfil</button>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.reload();
+              }}
+              className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white rounded-full text-sm font-bold shadow-sm hover:opacity-80 transition-all flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">logout</span> Sair
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-2">
@@ -841,10 +870,7 @@ const UserProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: View
         <div className="flex items-center justify-between mb-3"><h3 className="text-slate-900 dark:text-white text-lg font-bold">Notas humanas</h3><span className="text-primary text-sm font-semibold">Ver todas</span></div>
         <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
           <div className="min-w-[200px] bg-slate-100 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-            <p className="text-slate-700 dark:text-slate-300 text-sm italic">"O Alex é um vizinho incrível, sempre cuidadoso com os equipamentos."</p>
-          </div>
-          <div className="min-w-[200px] bg-slate-100 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-            <p className="text-slate-700 dark:text-slate-300 text-sm italic">"Negociação super transparente. Recomendo muito!"</p>
+            <p className="text-slate-700 dark:text-slate-300 text-sm italic">"O {user?.name?.split(' ')[0] || 'Usuário'} é incrível, sempre cuidadoso com os equipamentos."</p>
           </div>
         </div>
       </div>
@@ -872,11 +898,13 @@ const UserProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: View
         </div>
       </div>
 
-      <div className="fixed bottom-24 left-0 right-0 px-6 max-w-[480px] mx-auto z-40">
-        <button onClick={() => onChangeView(ViewState.CHAT)} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95">
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>chat_bubble</span>Falar com Alex
-        </button>
-      </div>
+      {!isOwnProfile && (
+        <div className="fixed bottom-24 left-0 right-0 px-6 max-w-[480px] mx-auto z-40">
+          <button onClick={() => onChangeView(ViewState.CHAT)} className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95">
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>chat_bubble</span>Falar com {user?.name?.split(' ')[0] || 'Vendedor'}
+          </button>
+        </div>
+      )}
     </div>
   )
 };
@@ -1716,6 +1744,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [hasProfile, setHasProfile] = useState<boolean>(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
 
@@ -1740,6 +1769,7 @@ const App: React.FC = () => {
       setIsLoadingProfile(false);
     }
   };
+
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1766,16 +1796,10 @@ const App: React.FC = () => {
 
   const handleViewChange = (targetView: ViewState) => {
     const protectedRoutes = [
-      ViewState.MY_ITEMS,
-      ViewState.CHAT_LIST,
-      ViewState.CHAT,
-      ViewState.NOTIFICATIONS,
-      ViewState.SETTINGS,
-      ViewState.PROFILE_PERSONAL,
-      ViewState.VISIBILITY,
-      ViewState.CONTACTS,
-      ViewState.HOME,
-      ViewState.SEARCH
+      ViewState.HOME, ViewState.PROFILE_PERSONAL, ViewState.PROFILE_PROFESSIONAL,
+      ViewState.MY_ITEMS, ViewState.CHAT_LIST, ViewState.CHAT, ViewState.SETTINGS,
+      ViewState.NOTIFICATIONS, ViewState.CONTACTS, ViewState.SEARCH, ViewState.EDIT_PROFILE,
+      ViewState.VISIBILITY
     ];
 
     if (protectedRoutes.includes(targetView)) {
@@ -1787,6 +1811,12 @@ const App: React.FC = () => {
         setView(ViewState.COMPLETE_PROFILE);
         return;
       }
+    }
+
+    if (targetView === ViewState.PROFILE_PERSONAL) {
+      setSelectedUserId(null);
+    } else if ([ViewState.HOME, ViewState.MY_ITEMS, ViewState.CHAT_LIST, ViewState.NOTIFICATIONS, ViewState.SEARCH].includes(targetView)) {
+      setSelectedUserId(null);
     }
 
     setView(targetView);
@@ -1816,9 +1846,16 @@ const App: React.FC = () => {
       case ViewState.PRIVACY:
         return <PrivacyScreen onSync={() => setView(ViewState.HOME)} onBack={() => setView(ViewState.WELCOME)} />;
       case ViewState.HOME:
-        return <HomeScreen onChangeView={handleViewChange} />;
+        return <HomeScreen
+          onChangeView={handleViewChange}
+          onSelectUser={(id) => { setSelectedUserId(id); setView(ViewState.PROFILE_PERSONAL); }}
+        />;
       case ViewState.PROFILE_PERSONAL:
-        return <UserProfileScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.HOME)} />;
+        return <UserProfileScreen
+          onChangeView={handleViewChange}
+          onBack={() => setView(ViewState.HOME)}
+          targetUserId={selectedUserId}
+        />;
       case ViewState.PROFILE_PROFESSIONAL:
         return <ProfessionalProfileScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.PROFILE_PERSONAL)} />;
       case ViewState.SERVICE_DETAIL:
@@ -1848,7 +1885,10 @@ const App: React.FC = () => {
           setView(ViewState.PROFILE_PERSONAL);
         }} />;
       default:
-        return <HomeScreen onChangeView={handleViewChange} />;
+        return <HomeScreen
+          onChangeView={handleViewChange}
+          onSelectUser={(id) => { setSelectedUserId(id); setView(ViewState.PROFILE_PERSONAL); }}
+        />;
     }
   };
 
