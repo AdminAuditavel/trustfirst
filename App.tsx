@@ -747,7 +747,7 @@ const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewS
           <div className="px-4 py-8 text-center">
             <p className="text-slate-900 dark:text-white font-bold mb-2">Seu feed está vazio.</p>
             <p className="text-slate-500 text-sm mb-4">Adicione contatos ou sincronize sua agenda para ver itens de pessoas confiáveis.</p>
-            <button className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold">Sincronizar Contatos</button>
+            <button onClick={() => onChangeView(ViewState.PRIVACY)} className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold">Sincronizar Contatos</button>
           </div>
         ) : (
           <div className="flex overflow-x-auto gap-4 px-4 py-3 snap-x no-scrollbar">
