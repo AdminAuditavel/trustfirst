@@ -1316,16 +1316,22 @@ const App: React.FC = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      checkProfile(session);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setView(ViewState.UPDATE_PASSWORD);
+      } else if (session) {
+        checkProfile(session);
+        // Only redirect to Home if coming from Auth views
+        setView(v => [ViewState.AUTH, ViewState.WELCOME, ViewState.FORGOT_PASSWORD].includes(v) ? ViewState.HOME : v);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   const handleViewChange = (targetView: ViewState) => {
-    // Protected Routes
     const protectedRoutes = [
       ViewState.MY_ITEMS,
       ViewState.CHAT_LIST,
@@ -1339,11 +1345,11 @@ const App: React.FC = () => {
 
     if (protectedRoutes.includes(targetView)) {
       if (!session) {
-        setView(ViewState.AUTH); // Redirect to Login/Auth
+        setView(ViewState.AUTH);
         return;
       }
       if (!isLoadingProfile && !hasProfile) {
-        setView(ViewState.COMPLETE_PROFILE); // Redirect to Complete Profile
+        setView(ViewState.COMPLETE_PROFILE);
         return;
       }
     }
@@ -1356,11 +1362,17 @@ const App: React.FC = () => {
       case ViewState.WELCOME:
         return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
       case ViewState.AUTH:
-        return <AuthScreen onLogin={() => {
-          checkProfile(session).then(() => {
-            setView(ViewState.HOME);
-          });
-        }} onCompleteProfile={() => setView(ViewState.COMPLETE_PROFILE)} />;
+        return <AuthScreen
+          onLogin={() => {
+            checkProfile(session).then(() => setView(ViewState.HOME));
+          }}
+          onCompleteProfile={() => setView(ViewState.COMPLETE_PROFILE)}
+          onForgotPassword={() => setView(ViewState.FORGOT_PASSWORD)}
+        />;
+      case ViewState.FORGOT_PASSWORD:
+        return <ForgotPasswordScreen onBack={() => setView(ViewState.AUTH)} onSent={() => { }} />;
+      case ViewState.UPDATE_PASSWORD:
+        return <UpdatePasswordScreen onComplete={() => setView(ViewState.HOME)} />;
       case ViewState.COMPLETE_PROFILE:
         return <CompleteProfileScreen onComplete={() => {
           setHasProfile(true);
@@ -1395,8 +1407,6 @@ const App: React.FC = () => {
       case ViewState.CONTACTS:
         return <ContactsScreen onBack={() => setView(ViewState.CHAT_LIST)} onChat={() => setView(ViewState.CHAT)} />;
       default:
-        // Default to HOME instead of Welcome if unknown state, 
-        // to ensure "app opens on home" feeling check.
         return <HomeScreen onChangeView={handleViewChange} />;
     }
   };
