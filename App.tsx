@@ -1050,34 +1050,37 @@ const SettingsScreen = ({ onChangeView }: { onChangeView: (view: ViewState) => v
   </div>
 );
 
-const BottomNav = ({ activeView, onChangeView }: { activeView: ViewState, onChangeView: (view: ViewState) => void }) => {
+const BottomNav = ({ activeView, onChangeView, userAvatar }: { activeView: ViewState, onChangeView: (view: ViewState) => void, userAvatar: string | null }) => {
   // Only show nav on certain screens
   const showNav = [ViewState.HOME, ViewState.MY_ITEMS, ViewState.SETTINGS, ViewState.PROFILE_PERSONAL, ViewState.CHAT_LIST, ViewState.NOTIFICATIONS, ViewState.CONTACTS, ViewState.SEARCH].includes(activeView);
   if (!showNav) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-background-dark/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 pb-6 pt-2 px-6 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-background-dark/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 pb-6 pt-2 px-2 z-50">
       <div className="max-w-md mx-auto flex justify-between items-center">
-        <button onClick={() => onChangeView(ViewState.HOME)} className={`flex flex-col items-center gap-1 transition-colors ${activeView === ViewState.HOME ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.HOME ? "'FILL' 1" : "'FILL' 0" }}>person_search</span>
-          <span className="text-[10px] font-bold">Descobrir</span>
+        <button onClick={() => onChangeView(ViewState.HOME)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.HOME ? 'text-primary' : 'text-slate-400'}`}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.HOME ? "'FILL' 1" : "'FILL' 0" }}>home</span>
+          <span className="text-[10px] font-bold">Início</span>
         </button>
-        <button onClick={() => onChangeView(ViewState.MY_ITEMS)} className={`flex flex-col items-center gap-1 transition-colors ${activeView === ViewState.MY_ITEMS ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.MY_ITEMS ? "'FILL' 1" : "'FILL' 0" }}>shopping_bag</span>
-          <span className="text-[10px] font-bold">Marketplace</span>
+
+        <button onClick={() => onChangeView(ViewState.SEARCH)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.SEARCH ? 'text-primary' : 'text-slate-400'}`}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.SEARCH ? "'FILL' 1" : "'FILL' 0" }}>search</span>
+          <span className="text-[10px] font-bold">Explorar</span>
         </button>
-        <div className="relative -top-6">
-          <button onClick={() => onChangeView(ViewState.VISIBILITY)} className="flex items-center justify-center bg-primary text-white rounded-full size-14 shadow-lg shadow-primary/40 border-4 border-white dark:border-background-dark active:scale-95 transition-transform">
-            <span className="material-symbols-outlined text-3xl">add</span>
-          </button>
-        </div>
-        <button onClick={() => onChangeView(ViewState.CHAT_LIST)} className={`flex flex-col items-center gap-1 transition-colors ${[ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? 'text-primary' : 'text-slate-400'}`}>
+
+        <button onClick={() => onChangeView(ViewState.MY_ITEMS)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${activeView === ViewState.MY_ITEMS ? 'text-primary' : 'text-slate-400'}`}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: activeView === ViewState.MY_ITEMS ? "'FILL' 1" : "'FILL' 0" }}>inventory_2</span>
+          <span className="text-[10px] font-bold">Meus Itens</span>
+        </button>
+
+        <button onClick={() => onChangeView(ViewState.CHAT_LIST)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${[ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? 'text-primary' : 'text-slate-400'}`}>
           <span className="material-symbols-outlined" style={{ fontVariationSettings: [ViewState.CHAT_LIST, ViewState.CHAT].includes(activeView) ? "'FILL' 1" : "'FILL' 0" }}>chat_bubble</span>
-          <span className="text-[10px] font-bold">Mensagens</span>
+          <span className="text-[10px] font-bold">Conversas</span>
         </button>
-        <button onClick={() => onChangeView(ViewState.NOTIFICATIONS)} className={`flex flex-col items-center gap-1 transition-colors ${[ViewState.NOTIFICATIONS, ViewState.SETTINGS].includes(activeView) ? 'text-primary' : 'text-slate-400'}`}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: [ViewState.NOTIFICATIONS, ViewState.SETTINGS].includes(activeView) ? "'FILL' 1" : "'FILL' 0" }}>notifications</span>
-          <span className="text-[10px] font-bold">Avisos</span>
+
+        <button onClick={() => onChangeView(ViewState.PROFILE_PERSONAL)} className={`flex flex-col items-center gap-1 w-1/5 transition-colors ${[ViewState.PROFILE_PERSONAL, ViewState.SETTINGS].includes(activeView) ? 'text-primary' : 'text-slate-400'}`}>
+          <div className={`size-6 rounded-full bg-cover bg-center border-2 ${[ViewState.PROFILE_PERSONAL, ViewState.SETTINGS].includes(activeView) ? 'border-primary' : 'border-transparent'}`} style={{ backgroundImage: `url("${userAvatar || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCVdFllcYvR_SQdhiLy6q6oJFyrQF6rEUOF1t-YNSD4sADJPl-Xgc1SE_0AOn6dHxGfLIHDzs19LXKFvPyCf2QLjTFEU9Pb8jpHKkgFXdw1LRNojzyi7dWZqgXHs9ZKX9dueXN6KJh1tC4b22ppQZXyZ_kS720EkJUVzW2P9oTjsbjWKQUo8RW-kbhcm0lKGW30UyhA3aBtCoJHWu0btWdjZI5Fa7dgpAkINIIFkBcIAciFz0ynwaw5gUWmyagrTsV2out7jYi5LwA'}")` }}></div>
+          <span className="text-[10px] font-bold">Perfil</span>
         </button>
       </div>
     </nav>
@@ -1386,6 +1389,8 @@ const App: React.FC = () => {
   const [hasProfile, setHasProfile] = useState<boolean>(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
 
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
   const checkProfile = async (currentSession: any) => {
     if (!currentSession?.user) {
       setHasProfile(false);
@@ -1394,9 +1399,12 @@ const App: React.FC = () => {
     }
 
     try {
-      const { data } = await supabase.from('users').select('id, name').eq('id', currentSession.user.id).single();
+      const { data } = await supabase.from('users').select('id, name, avatar_url').eq('id', currentSession.user.id).single();
       const exists = !!(data && data.name);
       setHasProfile(exists);
+      if (data) {
+        setUserAvatar(data.avatar_url);
+      }
     } catch (error) {
       console.error("Profile check error:", error);
       setHasProfile(false);
@@ -1513,7 +1521,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white transition-colors duration-300">
       {renderView()}
-      <BottomNav activeView={view} onChangeView={handleViewChange} />
+      <BottomNav activeView={view} onChangeView={handleViewChange} userAvatar={userAvatar} />
     </div>
   );
 };
