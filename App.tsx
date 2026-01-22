@@ -1251,7 +1251,12 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
       }
     } catch (err: any) {
       console.error('Check email error:', err);
-      setMessage(err.message || 'Erro ao verificar e-mail');
+      const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
+      if (isRateLimit) {
+        setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
+      } else {
+        setMessage(err.message || 'Erro ao verificar e-mail');
+      }
     } finally {
       setLoading(false);
     }
