@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ViewState } from './types';
+
 import { supabase } from './lib/supabase';
+import { hashPhone, normalizePhone } from './lib/utils';
 
 // --- Assets ---
 const IMAGES = {
@@ -57,13 +59,7 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
     }
   }, [selectedUf]);
 
-  const hashPhone = async (phone: string) => {
-    const msgBuffer = new TextEncoder().encode(phone);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +77,8 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
       }
 
       const phoneValue = phone || user.phone || '';
-      const phoneHash = await hashPhone(phoneValue.replace(/\D/g, ''));
+
+      const phoneHash = await hashPhone(phoneValue);
 
       const updates = {
         id: user.id,
@@ -283,13 +280,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     }
   }, [selectedUf]);
 
-  const hashPhone = async (phone: string) => {
-    const msgBuffer = new TextEncoder().encode(phone);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
-  };
+
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
@@ -344,7 +335,8 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
       }
 
       const phoneValue = phone || user.phone || '';
-      const phoneHash = await hashPhone(phoneValue.replace(/\D/g, ''));
+
+      const phoneHash = await hashPhone(phoneValue);
 
       const updates: any = {
         id: user.id,
@@ -569,18 +561,70 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
   const handleSync = async () => {
     setLoading(true);
     try {
-      // SIMULATION MODE: Since native API is flaky, we mock the sync
-      await new Promise(r => setTimeout(r, 1500));
+      // 1. Check for Contact Picker API support (Mobile)
+      if ('contacts' in navigator && 'ContactsManager' in window) {
+        try {
+          // @ts-ignore - The contacts API is not yet in all TS definitions
+          const contacts = await navigator.contacts.select(['tel'], { multiple: true });
 
-      alert('Simulando sincronização... 5 contatos encontrados e importados!');
+          if (!contacts || contacts.length === 0) {
+            setLoading(false);
+            return;
+          }
 
-      // In a real app, this would send data to backend. 
-      // For now, onSync() redirects to Home.
-      onSync();
+          const phoneNumbers: string[] = [];
 
-    } catch (ex) {
+          contacts.forEach((contact: any) => {
+            if (contact.tel && Array.isArray(contact.tel)) {
+              contact.tel.forEach((t: string) => phoneNumbers.push(t));
+            }
+          });
+
+          // Hash all numbers
+          const hashes = await Promise.all(phoneNumbers.map(p => hashPhone(p)));
+
+          // Call Backend
+          const { error } = await supabase.rpc('sync_contacts', { hashes });
+
+          if (error) throw error;
+
+          alert(`Sincronização concluída! ${contacts.length} contatos verificados.`);
+          onSync();
+
+        } catch (ex) {
+          console.error(ex);
+          // Fallback or cancellation
+          if ((ex as any).name !== 'TypeError') { // TypeError usually means user cancelled or API check failed oddly
+            alert('Erro ao acessar contatos. Verifique as permissões.');
+          }
+        }
+      } else {
+        // Desktop / Simulation Mode
+        // On localhost/dev, we can simulate a sync for testing purposes
+        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (isDev) {
+          const manualPhone = prompt("[DEV MODE] Digite um número de celular para simular sincronização (ex: 11999999999):");
+          if (manualPhone) {
+            const hash = await hashPhone(manualPhone);
+            const { error } = await supabase.rpc('sync_contacts', { hashes: [hash] });
+
+            if (error) {
+              console.error(error);
+              alert('Erro na sincronização simulada: ' + error.message);
+            } else {
+              alert('Simulação: Contato sincronizado com sucesso! Se o número existir no banco, ele aparecerá na sua lista.');
+              onSync();
+            }
+          }
+        } else {
+          alert('A sincronização de contatos está disponível apenas em dispositivos móveis (Android/iOS) que suportam a Web Contact API.');
+        }
+      }
+
+    } catch (ex: any) {
       console.error(ex);
-      alert('Erro ao sincronizar.');
+      alert('Erro ao sincronizar: ' + ex.message);
     } finally {
       setLoading(false);
     }
