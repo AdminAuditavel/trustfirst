@@ -43,7 +43,7 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
         updated_at: new Date().toISOString(),
       };
 
-      const { error: upsertError } = await supabase.from('profiles').upsert(updates);
+      const { error: upsertError } = await supabase.from('users').upsert(updates);
 
       if (upsertError) throw upsertError;
 
@@ -1123,7 +1123,7 @@ const App: React.FC = () => {
     if (!session?.user) return;
 
     // Check if profile exists
-    const { data } = await supabase.from('profiles').select('id, name').eq('id', session.user.id).single();
+    const { data } = await supabase.from('users').select('id, name').eq('id', session.user.id).single();
 
     if (data && data.name) {
       setView(ViewState.HOME);
