@@ -562,7 +562,11 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
     setLoading(true);
     try {
       // 1. Check for Contact Picker API support (Mobile)
-      if ('contacts' in navigator && 'ContactsManager' in window) {
+      // 1. Check for Contact Picker API support (Mobile)
+      const isSupported = 'contacts' in navigator && 'ContactsManager' in window;
+      console.log('Contacts API Supported:', isSupported);
+
+      if (isSupported) {
         try {
           // @ts-ignore - The contacts API is not yet in all TS definitions
           const contacts = await navigator.contacts.select(['tel'], { multiple: true });
@@ -595,7 +599,9 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
           console.error(ex);
           // Fallback or cancellation
           if ((ex as any).name !== 'TypeError') { // TypeError usually means user cancelled or API check failed oddly
-            alert('Erro ao acessar contatos. Verifique as permissões.');
+            alert('Erro ao acessar contatos: ' + (ex as any).message);
+          } else {
+            setLoading(false); // Reset loading if cancelled
           }
         }
       } else {
@@ -606,19 +612,26 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
         if (isDev) {
           const manualPhone = prompt("[DEV MODE] Digite um número de celular para simular sincronização (ex: 11999999999):");
           if (manualPhone) {
-            const hash = await hashPhone(manualPhone);
-            const { error } = await supabase.rpc('sync_contacts', { hashes: [hash] });
+            try {
+              const hash = await hashPhone(manualPhone);
+              const { error } = await supabase.rpc('sync_contacts', { hashes: [hash] });
 
-            if (error) {
-              console.error(error);
-              alert('Erro na sincronização simulada: ' + error.message);
-            } else {
-              alert('Simulação: Contato sincronizado com sucesso! Se o número existir no banco, ele aparecerá na sua lista.');
-              onSync();
+              if (error) {
+                console.error(error);
+                alert('Erro na sincronização simulada: ' + error.message);
+              } else {
+                alert('Simulação: Contato sincronizado com sucesso! Se o número existir no banco, ele aparecerá na sua lista.');
+                onSync();
+              }
+            } catch (e: any) {
+              alert('Erro ao processar: ' + e.message);
             }
+          } else {
+            setLoading(false); // Cancelled prompt
           }
         } else {
-          alert('A sincronização de contatos está disponível apenas em dispositivos móveis (Android/iOS) que suportam a Web Contact API.');
+          console.log('Mobile support missing and not localhost');
+          alert('A funcionalidade de contatos não é suportada neste navegador. Tente usar no celular (Chrome/Safari).');
         }
       }
 
