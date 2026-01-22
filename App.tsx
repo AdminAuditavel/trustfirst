@@ -1116,7 +1116,7 @@ const BottomNav = ({ activeView, onChangeView }: { activeView: ViewState, onChan
 // --- Main App Component ---
 
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>(ViewState.WELCOME);
+  const [view, setView] = useState<ViewState>(ViewState.HOME); // Start at HOME
   const [session, setSession] = useState<any>(null);
 
   const checkProfile = async (session: any) => {
@@ -1126,7 +1126,9 @@ const App: React.FC = () => {
     const { data } = await supabase.from('users').select('id, name').eq('id', session.user.id).single();
 
     if (data && data.name) {
-      setView(ViewState.HOME);
+      // Stay on current view or go to Home IF it was Auth flow
+      // For now, simple check: if we were in Auth/Welcome flow, go to Home
+      setView(v => [ViewState.AUTH, ViewState.WELCOME, ViewState.COMPLETE_PROFILE].includes(v) ? ViewState.HOME : v);
     } else {
       setView(ViewState.COMPLETE_PROFILE);
     }
@@ -1145,12 +1147,33 @@ const App: React.FC = () => {
       if (session) {
         checkProfile(session);
       } else {
-        setView(ViewState.WELCOME);
+        // Do not auto-redirect to Welcome. Let user browse Home.
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const handleViewChange = (targetView: ViewState) => {
+    // Protected Routes
+    const protectedRoutes = [
+      ViewState.MY_ITEMS,
+      ViewState.CHAT_LIST,
+      ViewState.CHAT,
+      ViewState.NOTIFICATIONS,
+      ViewState.SETTINGS,
+      ViewState.PROFILE_PERSONAL,
+      ViewState.VISIBILITY,
+      ViewState.CONTACTS
+    ];
+
+    if (!session && protectedRoutes.includes(targetView)) {
+      setView(ViewState.AUTH); // Redirect to Login/Auth
+      return;
+    }
+
+    setView(targetView);
+  };
 
   const renderView = () => {
     switch (view) {
@@ -1163,40 +1186,42 @@ const App: React.FC = () => {
       case ViewState.PRIVACY:
         return <PrivacyScreen onSync={() => setView(ViewState.HOME)} onBack={() => setView(ViewState.WELCOME)} />;
       case ViewState.HOME:
-        return <HomeScreen onChangeView={setView} />;
+        return <HomeScreen onChangeView={handleViewChange} />;
       case ViewState.PROFILE_PERSONAL:
-        return <UserProfileScreen onChangeView={setView} onBack={() => setView(ViewState.HOME)} />;
+        return <UserProfileScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.HOME)} />;
       case ViewState.PROFILE_PROFESSIONAL:
-        return <ProfessionalProfileScreen onChangeView={setView} onBack={() => setView(ViewState.PROFILE_PERSONAL)} />;
+        return <ProfessionalProfileScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.PROFILE_PERSONAL)} />;
       case ViewState.SERVICE_DETAIL:
-        return <ServiceDetailScreen onChangeView={setView} onBack={() => setView(ViewState.PROFILE_PROFESSIONAL)} />;
+        return <ServiceDetailScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.PROFILE_PROFESSIONAL)} />;
       case ViewState.PRODUCT_DETAIL:
-        return <ProductDetailScreen onChangeView={setView} onBack={() => setView(ViewState.PROFILE_PERSONAL)} />;
+        return <ProductDetailScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.PROFILE_PERSONAL)} />;
       case ViewState.VISIBILITY:
         return <VisibilityScreen onConfirm={() => setView(ViewState.MY_ITEMS)} onBack={() => setView(ViewState.HOME)} />;
       case ViewState.CHAT:
         return <ChatScreen onBack={() => setView(ViewState.CHAT_LIST)} />;
       case ViewState.CHAT_LIST:
-        return <ChatListScreen onChangeView={setView} onBack={() => setView(ViewState.HOME)} />;
+        return <ChatListScreen onChangeView={handleViewChange} onBack={() => setView(ViewState.HOME)} />;
       case ViewState.MY_ITEMS:
-        return <MyItemsScreen onChangeView={setView} />;
+        return <MyItemsScreen onChangeView={handleViewChange} />;
       case ViewState.SETTINGS:
-        return <SettingsScreen onChangeView={setView} />;
+        return <SettingsScreen onChangeView={handleViewChange} />;
       case ViewState.NOTIFICATIONS:
-        return <NotificationsScreen onChangeView={setView} />;
+        return <NotificationsScreen onChangeView={handleViewChange} />;
       case ViewState.SEARCH:
         return <SearchScreen onBack={() => setView(ViewState.HOME)} />;
       case ViewState.CONTACTS:
         return <ContactsScreen onBack={() => setView(ViewState.CHAT_LIST)} onChat={() => setView(ViewState.CHAT)} />;
       default:
-        return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
+        // Default to HOME instead of Welcome if unknown state, 
+        // to ensure "app opens on home" feeling check.
+        return <HomeScreen onChangeView={handleViewChange} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white transition-colors duration-300">
       {renderView()}
-      <BottomNav activeView={view} onChangeView={setView} />
+      <BottomNav activeView={view} onChangeView={handleViewChange} />
     </div>
   );
 };
