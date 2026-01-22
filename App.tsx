@@ -588,11 +588,15 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
           const hashes = await Promise.all(phoneNumbers.map(p => hashPhone(p)));
 
           // Call Backend
-          const { error } = await supabase.rpc('sync_contacts', { hashes });
+          const { data: count, error } = await supabase.rpc('sync_contacts', { hashes });
 
           if (error) throw error;
 
-          alert(`Sincronização concluída! ${contacts.length} contatos verificados.`);
+          if (count > 0) {
+            alert(`Sincronização concluída! ${count} novo(s) contato(s) adicionado(s) à sua rede.`);
+          } else {
+            alert(`Sincronização concluída, mas nenhum dos ${contacts.length} contatos verificados está no app ainda (ou já foram adicionados).`);
+          }
           onSync();
 
         } catch (ex) {
@@ -610,18 +614,20 @@ const PrivacyScreen = ({ onSync, onBack }: { onSync: () => void, onBack: () => v
         const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
         if (isDev) {
-          const manualPhone = prompt("[DEV MODE] Digite um número de celular para simular sincronização (ex: 11999999999):");
+          const manualPhone = prompt("[DEV MODE] Digite um número de celular para simular (ex: 93991475601):");
           if (manualPhone) {
             try {
               const hash = await hashPhone(manualPhone);
-              const { error } = await supabase.rpc('sync_contacts', { hashes: [hash] });
+              const { data: count, error } = await supabase.rpc('sync_contacts', { hashes: [hash] });
 
               if (error) {
                 console.error(error);
                 alert('Erro na sincronização simulada: ' + error.message);
-              } else {
-                alert('Simulação: Contato sincronizado com sucesso! Se o número existir no banco, ele aparecerá na sua lista.');
+              } else if (count > 0) {
+                alert(`Sucesso! Contato com final ${manualPhone.slice(-4)} foi adicionado.`);
                 onSync();
+              } else {
+                alert('Nenhum contato novo encontrado. Verifique se o número está registrado e não é o seu próprio.');
               }
             } catch (e: any) {
               alert('Erro ao processar: ' + e.message);
