@@ -14,20 +14,34 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setMessage('');
 
         try {
-            // Check if user exists in public profile using Secure RPC
-            const { data: exists, error } = await supabase.rpc('check_user_exists', { email_arg: email });
+            // Check if user exists in public table
+            // We use maybeSingle() to avoid error if not found
+            const { data, error } = await supabase
+                .from('users')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
 
-            if (error) throw error;
+            if (error) {
+                console.error("Error checking user:", error);
+                // Fallback: try to login/signup blindly or show error? 
+                // Let's assume if error, we can't verify, so maybe treat as new or show error.
+                // For robustness, let's treat as "check failed" and just try basic auth flow or show error.
+                // But better to throw to catch block.
+                throw error;
+            }
 
-            if (exists) {
-                // User exists -> Show password screen
+            if (data) {
+                // User exists in public 'users' table -> Show password screen
                 setStep('password');
             } else {
-                // New User (or not yet in public table) -> Send Magic Link
+                // New User -> Send Magic Link (Login/Signup via OTP)
+                // This handles both "true new user" and "user exists in auth but not public table" elegantly by just sending a link.
                 const { error: otpError } = await supabase.auth.signInWithOtp({
                     email,
                     options: {
                         emailRedirectTo: window.location.origin,
+                        shouldCreateUser: true, // Ensure we create user if doesn't exist
                     },
                 });
 
@@ -40,7 +54,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
             if (isRateLimit) {
                 setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
             } else {
-                setMessage(err.message || 'Erro ao verificar e-mail');
+                setMessage(err.message || 'Erro ao verificar e-mail. Tente novamente.');
             }
         } finally {
             setLoading(false);

@@ -65,7 +65,11 @@ const App: React.FC = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      checkProfile(session);
+      if (session) {
+        checkProfile(session);
+      } else {
+        setView(ViewState.AUTH);
+      }
     });
 
     const {
