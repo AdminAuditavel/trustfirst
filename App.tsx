@@ -29,10 +29,11 @@ import ContactsScreen from './src/screens/ContactsScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>(ViewState.HOME); // Start at HOME
+  const [view, setView] = useState<ViewState>(ViewState.WELCOME); // Start at WELCOME
   const [session, setSession] = useState<any>(null);
   const [hasProfile, setHasProfile] = useState<boolean>(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true); // Add global initialization state
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
@@ -63,13 +64,16 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Initial Session Check
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session) {
-        checkProfile(session);
+        await checkProfile(session);
+        setView(ViewState.HOME); // If session exists, go to HOME (or CompleteProfile via auth listener)
       } else {
         setView(ViewState.WELCOME);
       }
+      setIsInitializing(false); // Done initializing
     });
 
     const {
@@ -97,6 +101,10 @@ const App: React.FC = () => {
           }
           return v;
         });
+      } else if (event === 'SIGNED_OUT') {
+        setView(ViewState.WELCOME);
+        setHasProfile(false);
+        setUserAvatar(null);
       }
     });
 
@@ -209,6 +217,14 @@ const App: React.FC = () => {
         />;
     }
   };
+
+  if (isInitializing) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background-light dark:bg-background-dark">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white transition-colors duration-300">
