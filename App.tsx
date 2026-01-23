@@ -1872,11 +1872,11 @@ const App: React.FC = () => {
 
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
 
-  const checkProfile = async (currentSession: any) => {
+  const checkProfile = async (currentSession: any): Promise<boolean> => {
     if (!currentSession?.user) {
       setHasProfile(false);
       setIsLoadingProfile(false);
-      return;
+      return false;
     }
 
     try {
@@ -1886,9 +1886,11 @@ const App: React.FC = () => {
       if (data) {
         setUserAvatar(data.avatar_url);
       }
+      return exists;
     } catch (error) {
       console.error("Profile check error:", error);
       setHasProfile(false);
+      return false;
     } finally {
       setIsLoadingProfile(false);
     }
@@ -1903,15 +1905,29 @@ const App: React.FC = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
 
       if (event === 'PASSWORD_RECOVERY') {
         setView(ViewState.UPDATE_PASSWORD);
       } else if (session) {
-        checkProfile(session);
-        // Only redirect to Home if coming from Auth views
-        setView(v => [ViewState.AUTH, ViewState.WELCOME, ViewState.FORGOT_PASSWORD].includes(v) ? ViewState.HOME : v);
+        const hasProfile = await checkProfile(session);
+        // Only redirect based on auth events if we are in an entry screen
+        // or just logged in.
+
+        // If coming from Magic Link (often triggers INITIAL_SESSION or SIGNED_IN)
+        setView(v => {
+          // If we are already in the app, stays there (unless profile is missing).
+          // If we are coming from AUTH/WELCOME/FORGOT (login flow), we decide based on profile.
+          if ([ViewState.AUTH, ViewState.WELCOME, ViewState.FORGOT_PASSWORD].includes(v)) {
+            return hasProfile ? ViewState.HOME : ViewState.COMPLETE_PROFILE;
+          }
+          // If we are already elsewhere, check consistency
+          if (!hasProfile && ![ViewState.COMPLETE_PROFILE, ViewState.UPDATE_PASSWORD].includes(v)) {
+            return ViewState.COMPLETE_PROFILE;
+          }
+          return v;
+        });
       }
     });
 
