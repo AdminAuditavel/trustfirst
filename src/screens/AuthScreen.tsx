@@ -31,11 +31,10 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         console.log('[Auth] handleCheckEmail start', { email });
 
         try {
-            // Use RPC to securely check existence without exposing users table to anon
             const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
 
-            // wrap with timeout (10s)
-            const rpcResult: any = await withTimeout(rpcPromise, 10000);
+            // wrap with timeout (15s)
+            const rpcResult: any = await withTimeout(rpcPromise, 15000);
 
             console.log('[Auth] rpcResult', rpcResult);
 
@@ -66,7 +65,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                             shouldCreateUser: true,
                         },
                     }),
-                    10000
+                    15000
                 );
 
                 console.log('[Auth] otpResult', otpResult);
