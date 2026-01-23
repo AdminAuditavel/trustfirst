@@ -96,7 +96,9 @@ const CompleteProfileScreen = ({ onComplete }: { onComplete: () => void }) => {
 
       onComplete();
     } catch (err: any) {
-      setError(err.message);
+      console.error("Erro ao salvar perfil:", err);
+      // More detailed error for the user (in dev/debug)
+      setError(err.message + (err.details ? ` (${err.details})` : ''));
     } finally {
       setLoading(false);
     }
