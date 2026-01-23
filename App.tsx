@@ -26,7 +26,8 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import ContactsScreen from './src/screens/ContactsScreen';
-import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
+// CompleteProfileScreen deprecated in favor of EditProfileScreen
+// import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.WELCOME); // Start at WELCOME
@@ -173,7 +174,7 @@ const App: React.FC = () => {
       case ViewState.UPDATE_PASSWORD:
         return <UpdatePasswordScreen onComplete={() => setView(ViewState.HOME)} />;
       case ViewState.COMPLETE_PROFILE:
-        return <CompleteProfileScreen onComplete={() => {
+        return <EditProfileScreen isInitialSetup={true} onBack={() => {
           setHasProfile(true);
           setView(ViewState.HOME);
         }} />;
