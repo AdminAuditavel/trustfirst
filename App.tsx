@@ -68,7 +68,7 @@ const App: React.FC = () => {
       if (session) {
         checkProfile(session);
       } else {
-        setView(ViewState.AUTH);
+        setView(ViewState.WELCOME);
       }
     });
 
@@ -134,7 +134,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (view) {
       case ViewState.WELCOME:
-        return <WelcomeScreen onStart={() => setView(ViewState.PRIVACY)} onLogin={() => setView(ViewState.AUTH)} />;
+        return <WelcomeScreen onStart={() => setView(ViewState.AUTH)} onLogin={() => setView(ViewState.AUTH)} />;
       case ViewState.AUTH:
         return <AuthScreen
           onLogin={() => {
