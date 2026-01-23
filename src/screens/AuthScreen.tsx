@@ -8,47 +8,87 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
 
+    // Helper: wrap promise with timeout to avoid indefinite waiting
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
+        return new Promise<T>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                reject(new Error('timeout'));
+            }, ms);
+            p.then(res => {
+                clearTimeout(timer);
+                resolve(res);
+            }).catch(err => {
+                clearTimeout(timer);
+                reject(err);
+            });
+        });
+    };
+
     const handleCheckEmail = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
+        console.log('[Auth] handleCheckEmail start', { email });
 
         try {
             // Use RPC to securely check existence without exposing users table to anon
-            const { data: userExists, error: rpcError } = await supabase.rpc('check_user_exists', {
-                email_arg: email
-            });
+            const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
 
-            if (rpcError) throw rpcError;
+            // wrap with timeout (10s)
+            const rpcResult: any = await withTimeout(rpcPromise, 10000);
 
-            if (userExists) {
+            console.log('[Auth] rpcResult', rpcResult);
+
+            const userExists = rpcResult?.data ?? rpcResult; // adjust depending on supabase client shape
+            const rpcError = rpcResult?.error;
+
+            if (rpcError) {
+                console.error('[Auth] rpcError', rpcError);
+                throw rpcError;
+            }
+
+            // NOTE: depending on how the Postgres function returns, userExists might be true/false,
+            // or an object/array. Inspect rpcResult in console to confirm.
+            const existsFlag = !!userExists;
+            console.log('[Auth] existsFlag', existsFlag);
+
+            if (existsFlag) {
                 // User exists -> Show password screen
                 setStep('password');
             } else {
-                // Verified New User -> Send Magic Link
-                const { error: otpError } = await supabase.auth.signInWithOtp({
-                    email,
-                    options: {
-                        emailRedirectTo: window.location.origin,
-                        shouldCreateUser: true,
-                    },
-                });
+                // Verified New User -> Send Magic Link (also wrapped with timeout)
+                console.log('[Auth] sending magic link to', email);
+                const otpResult: any = await withTimeout(
+                    supabase.auth.signInWithOtp({
+                        email,
+                        options: {
+                            emailRedirectTo: window.location.origin,
+                            shouldCreateUser: true,
+                        },
+                    }),
+                    10000
+                );
 
-                if (otpError) throw otpError;
+                console.log('[Auth] otpResult', otpResult);
+
+                if (otpResult?.error) throw otpResult.error;
                 setStep('magic_link');
             }
         } catch (err: any) {
             console.error('Check email error:', err);
-            const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
-            if (isRateLimit) {
-                setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
+            if (err.message === 'timeout') {
+                setMessage('O servidor demorou para responder. Verifique sua conexão ou tente novamente em alguns segundos.');
             } else {
-                // If RPC fails (e.g. network), we can optionally fallback to password to be safe, 
-                // but explicit error is better for debugging now.
-                setMessage(err.message || 'Erro ao verificar e-mail. Tente novamente.');
+                const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
+                if (isRateLimit) {
+                    setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
+                } else {
+                    setMessage(err.message || 'Erro ao verificar e-mail. Tente novamente.');
+                }
             }
         } finally {
             setLoading(false);
+            console.log('[Auth] handleCheckEmail finished');
         }
     };
 
@@ -166,7 +206,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                             disabled={loading}
                             className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
                         >
-                            {loading ? 'Entrar' : 'Entrar'}
+                            {loading ? 'Entrando...' : 'Entrar'}
                         </button>
                     </form>
                 )}
