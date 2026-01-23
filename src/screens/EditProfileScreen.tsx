@@ -158,7 +158,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 updates.location = `${selectedCity} - ${selectedUf}`;
             }
 
-            const { error: upsertError } = await withTimeout(Promise.resolve(supabase.from('users').upsert(updates)), 10000) as any;
+            const { error: upsertError } = await withTimeout(Promise.resolve(supabase.from('users').upsert(updates).select()), 10000) as any;
 
             if (upsertError) {
                 // Handle unique constraints explicitly
