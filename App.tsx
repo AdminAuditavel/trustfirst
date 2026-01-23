@@ -64,16 +64,33 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
+    // Safety timeout: Ensure we stop loading after 3 seconds max, even if Supabase hangs
+    const safetyTimeout = setTimeout(() => {
+      setIsInitializing(prev => {
+        if (prev) {
+          console.warn("Session check timed out, forcing Welcome screen.");
+          setView(ViewState.WELCOME);
+          return false;
+        }
+        return prev;
+      });
+    }, 3000);
+
     // Initial Session Check
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session) {
         await checkProfile(session);
-        setView(ViewState.HOME); // If session exists, go to HOME (or CompleteProfile via auth listener)
+        setView(ViewState.HOME);
       } else {
         setView(ViewState.WELCOME);
       }
-      setIsInitializing(false); // Done initializing
+    }).catch(err => {
+      console.error("Session check failed:", err);
+      setView(ViewState.WELCOME);
+    }).finally(() => {
+      clearTimeout(safetyTimeout); // Clear timeout if we finished properly
+      setIsInitializing(false);
     });
 
     const {
