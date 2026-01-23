@@ -30,11 +30,6 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setMessage('');
         console.log('[Auth] handleCheckEmail start', { email });
 
-        // Function to add timeout to promises
-        const currentTimeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão.')), 15000)
-        );
-
         try {
             const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
 
@@ -81,31 +76,36 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
             }
         } catch (err: any) {
             console.error('Check email error:', err);
-            if (err.message === 'timeout') {
-                setMessage('O servidor demorou para responder. Verifique sua conexão ou tente novamente em alguns segundos.');
-            } else {
-                const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
-                if (isRateLimit) {
-                    setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
-                } else {
-                    // Fallback to Magic Link on RPC failure/Timeout
-                    console.warn('RPC check failed, falling back to Magic Link:', err);
-                    setMessage('Verificação instável. Tentando envio de link mágico...');
 
-                    try {
-                        const signInPromise = supabase.auth.signInWithOtp({
-                            email,
-                            options: {
-                                emailRedirectTo: window.location.origin,
-                                shouldCreateUser: true,
-                            },
-                        });
+            const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
+            const isTimeout = err.message === 'timeout' || err.message?.includes('Tempo limite');
 
-                        const { error: otpError } = await Promise.race([signInPromise, currentTimeout]) as any;
-                        if (otpError) throw otpError;
+            if (isRateLimit) {
+                setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
+            } else if (isTimeout || err) {
+                // Fallback to Magic Link on RPC failure/Timeout or any other non-rate-limit error
+                console.warn('RPC check failed or timed out, falling back to Magic Link:', err);
+                setMessage('Verificação instável. Tentando envio de link mágico...');
 
-                        setStep('magic_link');
-                    } catch (otpErr: any) {
+                try {
+                    const signInPromise = supabase.auth.signInWithOtp({
+                        email,
+                        options: {
+                            emailRedirectTo: window.location.origin,
+                            shouldCreateUser: true,
+                        },
+                    });
+
+                    // Also timeout the fallback
+                    const { error: otpError } = await withTimeout(signInPromise, 15000) as any;
+
+                    if (otpError) throw otpError;
+
+                    setStep('magic_link');
+                } catch (otpErr: any) {
+                    if (otpErr.message === 'timeout') {
+                        setMessage('O servidor demorou para responder. Verifique sua conexão.');
+                    } else {
                         setMessage(otpErr.message || 'Erro ao conectar. Verifique sua rede.');
                     }
                 }
