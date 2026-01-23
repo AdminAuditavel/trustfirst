@@ -1,15 +1,15 @@
-# Trust-First Marketplace  
+# Trust Circle Marketplace  
 ## Um marketplace social privado baseado em confiança real entre pessoas
 
 ## Visão Geral
 
-O Trust-First é um aplicativo mobile-first que permite a compra, venda e oferta de produtos e serviços **baseado em relações de confiança reais**, e não em anúncios públicos, grupos invasivos ou algoritmos agressivos.
+O Trust Circle é um aplicativo mobile-first que permite a compra, venda e oferta de produtos e serviços **baseado em relações de confiança reais**, e não em anúncios públicos, grupos invasivos ou algoritmos agressivos.
 
 O app nasce como uma resposta direta a um problema comum em marketplaces tradicionais:
 
 > “Tenho medo de comprar porque não sei quem está vendendo.”
 
-No Trust-First, **as pessoas vêm antes dos produtos**.  
+No Trust Circle, **as pessoas vêm antes dos produtos**.  
 Você não compra de um anúncio — você compra de alguém que você conhece ou que alguém de confiança conhece.
 
 ---
@@ -56,7 +56,7 @@ O Trust Circle é:
 
 ## Modelo de Compartilhamento (Anti-Spam por Design)
 
-O Trust-First **não funciona por empurrão**, e sim por **disponibilidade passiva**.
+O Trust Circle **não funciona por empurrão**, e sim por **disponibilidade passiva**.
 
 ### Regras fundamentais:
 
@@ -110,7 +110,7 @@ Essa observação:
 
 ## Estrutura do App
 
-### 1. Onboarding – Trust First
+### 1. Onboarding – Trust Circle
 
 O onboarding deixa claro, desde o início:
 
@@ -203,7 +203,7 @@ Indicadores opcionais:
 
 ## O que o app NÃO é
 
-Para preservar a proposta, o Trust-First:
+Para preservar a proposta, o Trust Circle:
 
 - ❌ Não é um marketplace público
 - ❌ Não usa grupos
@@ -216,7 +216,7 @@ Para preservar a proposta, o Trust-First:
 
 ## Diferencial Competitivo
 
-O Trust-First cria um **marketplace social privado**, difícil de copiar, porque:
+O Trust Circle cria um **marketplace social privado**, difícil de copiar, porque:
 
 - A distribuição acontece por relações humanas
 - O valor cresce com a rede de confiança
@@ -235,7 +235,7 @@ Criar um ambiente onde:
 - Compartilhar não é spam
 - A confiança precede a transação
 
-O Trust-First não tenta substituir o WhatsApp ou a OLX.  
+O Trust Circle não tenta substituir o WhatsApp ou a OLX.  
 Ele ocupa o espaço que nenhum dos dois resolve bem:
 
 > **Negociar com pessoas reais, de forma silenciosa, segura e baseada em confiança.**
