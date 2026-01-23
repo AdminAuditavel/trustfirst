@@ -85,11 +85,13 @@ const App: React.FC = () => {
         // Correctly route based on profile existence
         setView(hasProfile ? ViewState.HOME : ViewState.COMPLETE_PROFILE);
       } else {
-        setView(ViewState.WELCOME);
+        // Prevent race condition: Only go to welcome if we aren't already trying to auth
+        setView(current => current === ViewState.AUTH ? current : ViewState.WELCOME);
       }
     }).catch(err => {
       console.error("Session check failed:", err);
-      setView(ViewState.WELCOME);
+      // Same here
+      setView(current => current === ViewState.AUTH ? current : ViewState.WELCOME);
     }).finally(() => {
       clearTimeout(safetyTimeout); // Clear timeout if we finished properly
       setIsInitializing(false);
