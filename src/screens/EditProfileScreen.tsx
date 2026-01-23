@@ -19,6 +19,22 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     const [msg, setMsg] = useState('');
     const [isUploading, setIsUploading] = useState(false);
 
+    // Helper: wrap promise with timeout to avoid indefinite waiting
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
+        return new Promise<T>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                reject(new Error('timeout'));
+            }, ms);
+            p.then(res => {
+                clearTimeout(timer);
+                resolve(res);
+            }).catch(err => {
+                clearTimeout(timer);
+                reject(err);
+            });
+        });
+    };
+
     useEffect(() => {
         fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
             .then(response => response.json())
@@ -85,9 +101,12 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
             const filePath = `${user.id}/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(filePath, file);
+            const { error: uploadError } = await withTimeout(
+                Promise.resolve(supabase.storage
+                    .from('avatars')
+                    .upload(filePath, file)),
+                10000
+            ) as any;
 
             if (uploadError) {
                 throw uploadError;
@@ -113,11 +132,11 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         setMsg('');
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await withTimeout(Promise.resolve(supabase.auth.getUser()), 5000);
             if (!user) throw new Error('Usuário não autenticado');
 
             if (password) {
-                const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+                const { error: pwdError } = await withTimeout(Promise.resolve(supabase.auth.updateUser({ password: password })), 10000) as any;
                 if (pwdError) throw pwdError;
             }
 
@@ -139,7 +158,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 updates.location = `${selectedCity} - ${selectedUf}`;
             }
 
-            const { error: upsertError } = await supabase.from('users').upsert(updates);
+            const { error: upsertError } = await withTimeout(Promise.resolve(supabase.from('users').upsert(updates)), 10000) as any;
 
             if (upsertError) {
                 // Handle unique constraints explicitly
