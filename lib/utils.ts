@@ -1,5 +1,15 @@
 export const normalizePhone = (phone: string): string => {
-    return phone.replace(/\D/g, '');
+    let cleaned = phone.replace(/\D/g, '');
+
+    // Remove leading zeros (e.g. 011...)
+    cleaned = cleaned.replace(/^0+/, '');
+
+    // Brazil logic: If 10 or 11 digits, assume BR and prepend 55
+    if (cleaned.length === 10 || cleaned.length === 11) {
+        cleaned = '55' + cleaned;
+    }
+
+    return cleaned;
 };
 
 export const hashPhone = async (phone: string): Promise<string> => {

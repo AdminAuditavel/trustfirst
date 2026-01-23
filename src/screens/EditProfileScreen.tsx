@@ -1,0 +1,311 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { hashPhone } from '../../lib/utils';
+import { IBGEUF, IBGECity } from '../../types';
+
+const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => void, isInitialSetup?: boolean }) => {
+    const [name, setName] = useState('');
+    const [password, setPassword] = useState('');
+    const [avatarUrl, setAvatarUrl] = useState('');
+
+    const [ufs, setUfs] = useState<IBGEUF[]>([]);
+    const [cities, setCities] = useState<IBGECity[]>([]);
+    const [selectedUf, setSelectedUf] = useState('');
+    const [selectedCity, setSelectedCity] = useState('');
+
+    const [phone, setPhone] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [msg, setMsg] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
+
+    useEffect(() => {
+        fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+            .then(response => response.json())
+            .then(data => setUfs(data));
+
+        // Load initial data
+        const loadData = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Default to auth phone if available
+                let currentPhone = user.phone || '';
+
+                const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+                if (profile) {
+                    setName(profile.name || '');
+                    setAvatarUrl(profile.avatar_url || '');
+                    // Prioritize profile phone if set
+                    if (profile.phone) {
+                        currentPhone = profile.phone;
+                    }
+                    if (profile.location) {
+                        try {
+                            const parts = profile.location.split(' - ');
+                            if (parts.length === 2 && parts[1].length === 2) {
+                                setSelectedUf(parts[1]);
+                                // We can't easily auto-select city without proper async chain or complex logic
+                                // For now we set it, and if it matches the loaded city list (triggered by effect), it works
+                                setSelectedCity(parts[0]);
+                            }
+                        } catch (e) { }
+                    }
+                }
+                setPhone(currentPhone);
+            }
+        };
+        loadData();
+    }, []);
+
+    useEffect(() => {
+        if (selectedUf) {
+            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedUf}/municipios`)
+                .then(response => response.json())
+                .then(data => setCities(data));
+        } else {
+            setCities([]);
+        }
+    }, [selectedUf]);
+
+
+
+    const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || event.target.files.length === 0) {
+            return;
+        }
+
+        setIsUploading(true);
+        const file = event.target.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Usuário não autenticado");
+
+            const filePath = `${user.id}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file);
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(filePath);
+
+            setAvatarUrl(publicUrl);
+        } catch (error: any) {
+            console.error('Error uploading avatar:', error);
+            setError('Erro ao enviar imagem. Tente novamente.');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        setMsg('');
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('Usuário não autenticado');
+
+            if (password) {
+                const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+                if (pwdError) throw pwdError;
+            }
+
+            const phoneValue = phone || user.phone || '';
+
+            const phoneHash = await hashPhone(phoneValue);
+
+            const updates: any = {
+                id: user.id,
+                email: user.email,
+                name,
+                phone: phoneValue,
+                phone_hash: phoneHash,
+                updated_at: new Date().toISOString(),
+                avatar_url: avatarUrl
+            };
+
+            if (selectedCity && selectedUf) {
+                updates.location = `${selectedCity} - ${selectedUf}`;
+            }
+
+            const { error: upsertError } = await supabase.from('users').upsert(updates);
+
+            if (upsertError) {
+                // Handle unique constraints explicitly
+                if (upsertError.code === '23505') { // unique_violation code
+                    if (upsertError.message?.includes('users_phone_key') || upsertError.details?.includes('phone')) {
+                        throw new Error('Este telefone já está cadastrado por outro usuário.');
+                    }
+                    if (upsertError.message?.includes('users_email_key') || upsertError.details?.includes('email')) {
+                        throw new Error('Este e-mail já está cadastrado por outro usuário.');
+                    }
+                }
+                throw upsertError;
+            }
+
+            if (!isInitialSetup) {
+                setMsg('Perfil atualizado com sucesso!');
+                setTimeout(() => {
+                    onBack();
+                }, 1500);
+            } else {
+                onBack();
+            }
+
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || 'Erro ao atualizar perfil.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
+            <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+                {!isInitialSetup && (
+                    <button onClick={onBack} className="absolute top-6 left-6 text-slate-400 hover:text-slate-600">
+                        <span className="material-symbols-outlined">arrow_back</span>
+                    </button>
+                )}
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{isInitialSetup ? 'Complete seu perfil' : 'Editar Perfil'}</h2>
+                    <p className="mt-2 text-sm text-slate-500">{isInitialSetup ? 'Defina sua senha e seus dados.' : 'Atualize suas informações.'}</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="flex justify-center mb-6">
+                        <div className="relative">
+                            <div className="size-24 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center border-4 border-white dark:border-background-dark shadow-lg" style={{ backgroundImage: `url("${avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCVdFllcYvR_SQdhiLy6q6oJFyrQF6rEUOF1t-YNSD4sADJPl-Xgc1SE_0AOn6dHxGfLIHDzs19LXKFvPyCf2QLjTFEU9Pb8jpHKkgFXdw1LRNojzyi7dWZqgXHs9ZKX9dueXN6KJh1tC4b22ppQZXyZ_kS720EkJUVzW2P9oTjsbjWKQUo8RW-kbhcm0lKGW30UyhA3aBtCoJHWu0btWdjZI5Fa7dgpAkINIIFkBcIAciFz0ynwaw5gUWmyagrTsV2out7jYi5LwA'}")` }}>
+                            </div>
+                            <label
+                                className={`absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 hover:bg-primary/90 shadow-md transform translate-x-1/4 translate-y-1/4 cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                                {isUploading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">edit</span>}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleAvatarUpload}
+                                    disabled={isUploading}
+                                />
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nome Completo</label>
+                        <input
+                            type="text"
+                            required
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            placeholder="Ex: Maria Silva"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{isInitialSetup ? 'Senha de Acesso' : 'Nova Senha (opcional)'}</label>
+                        <input
+                            type="password"
+                            required={isInitialSetup}
+                            minLength={6}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <div className="w-1/3">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+                            <select
+                                required={isInitialSetup}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                                value={selectedUf}
+                                onChange={e => {
+                                    setSelectedUf(e.target.value);
+                                    setSelectedCity('');
+                                }}
+                            >
+                                <option value="">UF</option>
+                                {ufs.map(uf => (
+                                    <option key={uf.id} value={uf.sigla}>{uf.sigla}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cidade</label>
+                            <select
+                                required={isInitialSetup}
+                                disabled={!selectedUf}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-50"
+                                value={selectedCity}
+                                onChange={e => setSelectedCity(e.target.value)}
+                            >
+                                <option value="">Selecione a cidade</option>
+                                {cities.map(city => (
+                                    <option key={city.id} value={city.nome}>{city.nome}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">WhatsApp / Telefone</label>
+                        <input
+                            type="tel"
+                            required
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            placeholder="(11) 99999-9999"
+                            value={phone}
+                            onChange={e => setPhone(e.target.value)}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Usado apenas para parear seus contatos. Não será exibido publicamente.</p>
+                    </div>
+
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                    {msg && <p className="text-green-500 text-sm text-center">{msg}</p>}
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+                    >
+                        {loading ? 'Salvando...' : (isInitialSetup ? 'Concluir Cadastro' : 'Salvar Alterações')}
+                    </button>
+                </form>
+
+                <div className="mt-6 text-center">
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            await supabase.auth.signOut();
+                            window.location.reload();
+                        }}
+                        className="text-sm text-red-500 hover:text-red-700 font-medium"
+                    >
+                        {isInitialSetup ? 'Sair / Não é você?' : 'Sair da Conta'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default EditProfileScreen;

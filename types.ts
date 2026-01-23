@@ -28,3 +28,14 @@ export interface User {
   location: string;
   trustScore?: number;
 }
+
+export interface IBGEUF {
+  id: number;
+  sigla: string;
+  nome: string;
+}
+
+export interface IBGECity {
+  id: number;
+  nome: string;
+}
