@@ -33,9 +33,9 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         try {
             const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
 
-            // wrap with timeout (15s)
+            // wrap with timeout (5s)
             // Use Promise.resolve to handle any thenable/builder issues with types
-            const rpcResult: any = await withTimeout(Promise.resolve(rpcPromise), 15000);
+            const rpcResult: any = await withTimeout(Promise.resolve(rpcPromise), 5000);
 
             console.log('[Auth] rpcResult', rpcResult);
 
@@ -66,7 +66,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                             shouldCreateUser: true,
                         },
                     }),
-                    15000
+                    5000
                 );
 
                 console.log('[Auth] otpResult', otpResult);
@@ -97,7 +97,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     });
 
                     // Also timeout the fallback
-                    const { error: otpError } = await withTimeout(signInPromise, 15000) as any;
+                    const { error: otpError } = await withTimeout(signInPromise, 5000) as any;
 
                     if (otpError) throw otpError;
 

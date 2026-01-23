@@ -81,8 +81,9 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session) {
-        await checkProfile(session);
-        setView(ViewState.HOME);
+        const hasProfile = await checkProfile(session);
+        // Correctly route based on profile existence
+        setView(hasProfile ? ViewState.HOME : ViewState.COMPLETE_PROFILE);
       } else {
         setView(ViewState.WELCOME);
       }
