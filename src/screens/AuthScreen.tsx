@@ -30,11 +30,17 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setMessage('');
         console.log('[Auth] handleCheckEmail start', { email });
 
+        // Function to add timeout to promises
+        const currentTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão.')), 15000)
+        );
+
         try {
             const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
 
             // wrap with timeout (15s)
-            const rpcResult: any = await withTimeout(rpcPromise, 15000);
+            // Use Promise.resolve to handle any thenable/builder issues with types
+            const rpcResult: any = await withTimeout(Promise.resolve(rpcPromise), 15000);
 
             console.log('[Auth] rpcResult', rpcResult);
 
@@ -82,7 +88,26 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 if (isRateLimit) {
                     setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
                 } else {
-                    setMessage(err.message || 'Erro ao verificar e-mail. Tente novamente.');
+                    // Fallback to Magic Link on RPC failure/Timeout
+                    console.warn('RPC check failed, falling back to Magic Link:', err);
+                    setMessage('Verificação instável. Tentando envio de link mágico...');
+
+                    try {
+                        const signInPromise = supabase.auth.signInWithOtp({
+                            email,
+                            options: {
+                                emailRedirectTo: window.location.origin,
+                                shouldCreateUser: true,
+                            },
+                        });
+
+                        const { error: otpError } = await Promise.race([signInPromise, currentTimeout]) as any;
+                        if (otpError) throw otpError;
+
+                        setStep('magic_link');
+                    } catch (otpErr: any) {
+                        setMessage(otpErr.message || 'Erro ao conectar. Verifique sua rede.');
+                    }
                 }
             }
         } finally {
