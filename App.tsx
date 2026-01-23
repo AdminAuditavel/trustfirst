@@ -792,15 +792,53 @@ const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewS
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gente que seus amigos conhecem</p>
         </div>
         <div className="space-y-1">
+          {/* MOCK: Mariana Rios */}
+          <div
+            onClick={() => {
+              const p = profiles.find(u => u.name?.includes('Mariana'));
+              if (p) onSelectUser(p.id);
+            }}
+            className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/50 cursor-pointer"
+          >
+            <div className="relative">
+              <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-16 w-16 border-2 border-slate-200 dark:border-slate-800 shadow-sm" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD6IMFbpl-hK-Fgn8HvyZtORf7UsTCRV-i79J2iTE7Gcy0foVZixF_NSYNrn45ELDFuCgc0Q99OZHQ34J3Guqp35mUrZDxuh64wTQp_hSab6rBVIO1o2JSivzhaWbUS5jAScw2zxSo-T6-zHkCukqH-v5MI0YCvaT_4Qr4waxzH8VunuHjkaQhudZnfKldaBfvCiVAyLr1JZRDxgCtGmAW84WEA4la851zt5Ry5AhQcadygXScC-d2Jlk6tUkPAMD4QAqGhVi-7qL4")' }}></div>
+              <div className="absolute -bottom-1 -right-1 bg-primary text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white dark:border-background-dark"><span className="material-symbols-outlined text-[12px]">check_circle</span></div>
+            </div>
+            <div className="flex flex-1 flex-col justify-center gap-0.5">
+              <div className="flex items-center gap-2">
+                <p className="text-base font-bold text-slate-900 dark:text-white">Mariana Rios</p>
+                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold">3 OFERTAS</span>
+              </div>
+              <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">group</span>12 contatos em comum</p>
+              <p className="text-slate-400 dark:text-slate-500 text-xs">Belo Horizonte, MG</p>
+            </div>
+          </div>
+
+          {/* MOCK: Ricardo Mendes */}
+          <div
+            onClick={() => {
+              const p = profiles.find(u => u.name?.includes('Ricardo'));
+              if (p) onSelectUser(p.id);
+            }}
+            className="flex gap-4 px-4 py-4 bg-white dark:bg-background-dark/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/50 cursor-pointer"
+          >
+            <div className="relative">
+              <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-16 w-16 border-2 border-slate-200 dark:border-slate-800 shadow-sm" style={{ backgroundImage: `url("${IMAGES.avatarRicardo}")` }}></div>
+            </div>
+            <div className="flex flex-1 flex-col justify-center gap-0.5">
+              <div className="flex items-center gap-2">
+                <p className="text-base font-bold text-slate-900 dark:text-white">Ricardo Mendes</p>
+                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold">7 OFERTAS</span>
+              </div>
+              <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">group</span>8 contatos em comum</p>
+              <p className="text-slate-400 dark:text-slate-500 text-xs">Porto Alegre, RS</p>
+            </div>
+          </div>
+
           {profiles.length > 0 ? (
             profiles
               .filter(p => p.id !== currentUserId) // Don't show myself
               .map(profile => {
-                // Mock offer count - In real app, we would join with items table
-                // For now, let's treat everyone as having potential offers or randomize for demo if needed
-                // But better to just show the user.
-                // We'll prioritize profile display.
-
                 return (
                   <div
                     key={profile.id}
@@ -815,7 +853,6 @@ const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewS
                     <div className="flex flex-1 flex-col justify-center gap-0.5">
                       <div className="flex items-center gap-2">
                         <p className="text-base font-bold text-slate-900 dark:text-white">{profile.name}</p>
-                        {/* <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold">3 OFERTAS</span> */}
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">group</span>Confiável</p>
                       <p className="text-slate-400 dark:text-slate-500 text-xs">{profile.location || 'Brasil'}</p>
@@ -824,9 +861,8 @@ const HomeScreen = ({ onChangeView, onSelectUser }: { onChangeView: (view: ViewS
                 );
               })
           ) : (
-            <div className="px-4 py-8 text-center text-slate-500">
-              <p>Nenhuma conexão encontrada.</p>
-              <button onClick={() => onChangeView(ViewState.PRIVACY)} className="text-primary font-bold text-sm mt-2">Sincronizar Contatos</button>
+            <div className="px-4 py-4 text-center text-xs text-slate-400">
+              <p>Seus contatos do celular aparecerão aqui também.</p>
             </div>
           )}
         </div>
