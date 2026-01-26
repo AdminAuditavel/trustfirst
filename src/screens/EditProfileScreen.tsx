@@ -184,7 +184,14 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         try {
                             const { data: { session } } = await supabase.auth.getSession();
                             if (session?.access_token) {
+                                console.log('[Profile] Session token retrieved for fallback');
                                 const rawUrl = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`;
+
+                                // Add timeout to fetch
+                                const controller = new AbortController();
+                                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                                console.log('[Profile] Sending raw PUT request to', rawUrl);
                                 const rawResp = await fetch(rawUrl, {
                                     method: 'PUT',
                                     headers: {
@@ -192,8 +199,10 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                                         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
                                         'Authorization': `Bearer ${session.access_token}`
                                     },
-                                    body: JSON.stringify({ password: password })
+                                    body: JSON.stringify({ password: password }),
+                                    signal: controller.signal
                                 });
+                                clearTimeout(timeoutId);
 
                                 console.log('[Profile] Raw fetch status:', rawResp.status);
                                 if (rawResp.ok) {
@@ -202,11 +211,20 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                                 } else {
                                     const text = await rawResp.text();
                                     console.error('[Profile] Raw fetch failed:', text);
+                                    // Treat 401/403 as critical auth errors
+                                    if (rawResp.status === 401 || rawResp.status === 403) {
+                                        throw new Error(`Erro de autorização (${rawResp.status}). Sua sessão pode ter expirado.`);
+                                    }
                                     throw new Error(`Erro no fallback: ${rawResp.status} ${text}`);
                                 }
+                            } else {
+                                console.warn('[Profile] No session found for fallback');
                             }
-                        } catch (fallbackErr) {
-                            console.error('[Profile] Fallback also failed', fallbackErr);
+                        } catch (fallbackErr: any) {
+                            console.error('[Profile] Fallback also failed/aborted', fallbackErr);
+                            if (fallbackErr.name === 'AbortError') {
+                                console.error('[Profile] Fallback fetch timed out');
+                            }
                         }
                     }
 
