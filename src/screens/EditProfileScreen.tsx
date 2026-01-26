@@ -5,6 +5,7 @@ import { IBGEUF, IBGECity } from '../../types';
 
 const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => void, isInitialSetup?: boolean }) => {
     const [name, setName] = useState('');
+    const [nickname, setNickname] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
@@ -60,6 +61,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                     }
                     if (profile) {
                         setName(profile.name || '');
+                        setNickname(profile.nickname || '');
                         setAvatarUrl(profile.avatar_url || '');
                         if (profile.phone) currentPhone = profile.phone;
                         if (profile.location) {
@@ -259,6 +261,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 id: user.id,
                 email: user.email,
                 name,
+                nickname,
                 phone: phoneValue,
                 phone_hash: phoneHash,
                 updated_at: new Date().toISOString(),
@@ -416,6 +419,19 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                             value={name}
                             onChange={e => setName(e.target.value)}
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Apelido (como será conhecido)</label>
+                        <input
+                            type="text"
+                            maxLength={20}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            placeholder="Ex: Maria"
+                            value={nickname}
+                            onChange={e => setNickname(e.target.value)}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Máximo de 20 caracteres.</p>
                     </div>
 
                     <div>
