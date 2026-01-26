@@ -20,7 +20,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     const [msg, setMsg] = useState('');
     const [isUploading, setIsUploading] = useState(false);
 
-    // Helper: wrap promise with timeout to avoid indefinite waiting (kept for non-critical ops)
+    // Helper: keep a timeout wrapper only for non-critical long ops (uploads)
     const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
         return new Promise<T>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -51,10 +51,9 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                     return;
                 }
                 if (user) {
-                    // Default to auth phone if available
                     let currentPhone = user.phone || '';
 
-                    // Use maybeSingle to avoid 406 when no row exists
+                    // maybeSingle avoids PostgREST 406 when no row exists
                     const { data: profile, error: profileErr } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
                     if (profileErr) {
                         console.warn('profile load error', profileErr);
@@ -62,16 +61,12 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                     if (profile) {
                         setName(profile.name || '');
                         setAvatarUrl(profile.avatar_url || '');
-                        // Prioritize profile phone if set
-                        if (profile.phone) {
-                            currentPhone = profile.phone;
-                        }
+                        if (profile.phone) currentPhone = profile.phone;
                         if (profile.location) {
                             try {
                                 const parts = profile.location.split(' - ');
                                 if (parts.length === 2 && parts[1].length === 2) {
                                     setSelectedUf(parts[1]);
-                                    // We can't reliably auto-select city without loading chain; set it and rely on city list effect
                                     setSelectedCity(parts[0]);
                                 }
                             } catch (e) { /* ignore */ }
@@ -101,9 +96,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     }, [selectedUf]);
 
     const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (!event.target.files || event.target.files.length === 0) {
-            return;
-        }
+        if (!event.target.files || event.target.files.length === 0) return;
 
         setIsUploading(true);
         const file = event.target.files[0];
@@ -120,7 +113,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             console.log('[Avatar] uploading to storage', { filePath, fileName, userId: user.id });
             const uploadPromise = supabase.storage.from('avatars').upload(filePath, file);
 
-            // keep a longer timeout for uploads (20s)
+            // keep longer timeout for uploads
             const uploadResult: any = await withTimeout(uploadPromise, 20000).catch(err => { throw err; });
 
             if (uploadResult?.error) {
@@ -200,9 +193,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             }
 
             const phoneValue = phone || user.phone || '';
-            console.log('[Profile] Hashing phone:', phoneValue);
             const phoneHash = await hashPhone(phoneValue);
-            console.log('[Profile] Phone hash result:', phoneHash ? 'OK' : 'Empty');
 
             const updates: any = {
                 id: user.id,
@@ -214,9 +205,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 avatar_url: avatarUrl
             };
 
-            if (selectedCity && selectedUf) {
-                updates.location = `${selectedCity} - ${selectedUf}`;
-            }
+            if (selectedCity && selectedUf) updates.location = `${selectedCity} - ${selectedUf}`;
 
             console.log('[Profile] upserting user', { updates });
 
@@ -233,13 +222,11 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 const upErr = upsertResp.error;
                 console.error('[Profile] upsert error', upErr);
 
-                // If server returned 406, give specific message to investigate
                 if (upErr.status === 406 || upErr?.code === '406') {
                     setError('Erro de comunicação com o servidor (406). Verifique CORS/API e a URL/ANON_KEY do Supabase.');
                     throw upErr;
                 }
 
-                // Handle unique constraints explicitly
                 if (upErr.code === '23505') {
                     if (upErr.message?.includes('users_phone_key') || upErr.details?.includes('phone')) {
                         throw new Error('Este telefone já está cadastrado por outro usuário.');
@@ -251,12 +238,10 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 throw upErr;
             }
 
-            // success path
+            // success
             if (!isInitialSetup) {
                 setMsg('Perfil atualizado com sucesso!');
-                setTimeout(() => {
-                    onBack();
-                }, 1500);
+                setTimeout(() => onBack(), 1500);
             } else {
                 onBack();
             }
