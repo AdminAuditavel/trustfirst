@@ -6,6 +6,7 @@ import { IBGEUF, IBGECity } from '../../types';
 const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => void, isInitialSetup?: boolean }) => {
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
 
     const [ufs, setUfs] = useState<IBGEUF[]>([]);
@@ -53,7 +54,8 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                     // Default to auth phone if available
                     let currentPhone = user.phone || '';
 
-                    const { data: profile, error: profileErr } = await supabase.from('users').select('*').eq('id', user.id).single();
+                    // Use maybeSingle to avoid 406 when no row exists
+                    const { data: profile, error: profileErr } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
                     if (profileErr) {
                         console.warn('profile load error', profileErr);
                     }
@@ -69,6 +71,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                                 const parts = profile.location.split(' - ');
                                 if (parts.length === 2 && parts[1].length === 2) {
                                     setSelectedUf(parts[1]);
+                                    // We can't reliably auto-select city without loading chain; set it and rely on city list effect
                                     setSelectedCity(parts[0]);
                                 }
                             } catch (e) { /* ignore */ }
@@ -117,7 +120,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             console.log('[Avatar] uploading to storage', { filePath, fileName, userId: user.id });
             const uploadPromise = supabase.storage.from('avatars').upload(filePath, file);
 
-            // keep a longer timeout for uploads (10s)
+            // keep a longer timeout for uploads (20s)
             const uploadResult: any = await withTimeout(uploadPromise, 20000).catch(err => { throw err; });
 
             if (uploadResult?.error) {
@@ -129,7 +132,6 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             setAvatarUrl(publicUrlData.publicUrl);
         } catch (error: any) {
             console.error('Error uploading avatar:', error);
-            // If the error has status info, include it in the message for debugging
             const more = (error?.status || error?.statusCode) ? ` (status: ${error.status || error.statusCode})` : '';
             setError('Erro ao enviar imagem. Tente novamente.' + more);
         } finally {
@@ -157,8 +159,9 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             if (password) {
                 console.log('[Profile] updating password for user', user.id);
                 const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+                console.log('[Profile] updateUser result, pwdError:', pwdError);
                 if (pwdError) {
-                    console.error('[Profile] updateUser error', pwdError);
+                    console.error('[Profile] updateUser failed', pwdError);
                     throw pwdError;
                 }
             }
@@ -184,7 +187,6 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
             // upsert - log response fully to catch 406 or other errors
             const upsertResp: any = await supabase.from('users').upsert(updates).select();
-
             console.log('[Profile] upsertResp', upsertResp);
 
             if (upsertResp?.error) {
@@ -193,7 +195,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
                 // If server returned 406, give specific message to investigate
                 if (upErr.status === 406 || upErr?.code === '406') {
-                    setError('Erro de comunicação com o servidor (406). Verifique CORS/API ou URL/ANON_KEY do Supabase.');
+                    setError('Erro de comunicação com o servidor (406). Verifique CORS/API e a URL/ANON_KEY do Supabase.');
                     throw upErr;
                 }
 
@@ -281,15 +283,25 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{isInitialSetup ? 'Senha de Acesso' : 'Nova Senha (opcional)'}</label>
-                        <input
-                            type="password"
-                            required={isInitialSetup}
-                            minLength={6}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
-                            placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                required={isInitialSetup}
+                                minLength={6}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                                placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(p => !p)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                            >
+                                {showPassword ? 'Ocultar' : 'Mostrar'}
+                            </button>
+                        </div>
                         <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>
                     </div>
 
