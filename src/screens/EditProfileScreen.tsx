@@ -213,11 +213,19 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                                 } else {
                                     const text = await rawResp.text();
                                     console.error('[Profile] Raw fetch failed:', text);
+
+                                    // Handle specific "Same Password" error as success/warning
+                                    if (rawResp.status === 422 && text.includes('same_password')) {
+                                        console.warn('[Profile] Password is same as old one, ignoring.');
+                                        handled = true;
+                                    }
                                     // Treat 401/403 as critical auth errors
-                                    if (rawResp.status === 401 || rawResp.status === 403) {
+                                    else if (rawResp.status === 401 || rawResp.status === 403) {
                                         throw new Error(`Erro de autorização (${rawResp.status}). Sua sessão pode ter expirado.`);
                                     }
-                                    throw new Error(`Erro no fallback: ${rawResp.status} ${text}`);
+                                    else {
+                                        throw new Error(`Erro no fallback: ${rawResp.status} ${text}`);
+                                    }
                                 }
                             } else {
                                 console.warn('[Profile] No session found for fallback');
