@@ -178,17 +178,49 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         throw pwdError;
                     }
                 } catch (pwdErr: any) {
+                    let handled = false;
                     if (pwdErr.message === 'timeout_pwd') {
-                        console.error('[Profile] Password update timed out');
-                        // If it's initial setup, this is critical
-                        if (isInitialSetup) {
-                            throw new Error('O servidor demorou para responder ao atualizar a senha. Verifique sua conexão e tente novamente.');
-                        } else {
-                            // If just editing, maybe warn but proceed? Or fail safe. Let's fail safe.
-                            throw new Error('Tempo esgotado ao atualizar senha.');
+                        console.warn('[Profile] Password update timed out via SDK, trying raw fetch fallback...');
+                        try {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (session?.access_token) {
+                                const rawUrl = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`;
+                                const rawResp = await fetch(rawUrl, {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                                        'Authorization': `Bearer ${session.access_token}`
+                                    },
+                                    body: JSON.stringify({ password: password })
+                                });
+
+                                console.log('[Profile] Raw fetch status:', rawResp.status);
+                                if (rawResp.ok) {
+                                    console.log('[Profile] Raw fetch success');
+                                    handled = true;
+                                } else {
+                                    const text = await rawResp.text();
+                                    console.error('[Profile] Raw fetch failed:', text);
+                                    throw new Error(`Erro no fallback: ${rawResp.status} ${text}`);
+                                }
+                            }
+                        } catch (fallbackErr) {
+                            console.error('[Profile] Fallback also failed', fallbackErr);
                         }
                     }
-                    throw pwdErr;
+
+                    if (!handled) {
+                        if (pwdErr.message === 'timeout_pwd') {
+                            console.error('[Profile] Password update timed out');
+                            if (isInitialSetup) {
+                                throw new Error('O servidor demorou para responder ao atualizar a senha. Verifique se seu relógio está correto (Clock Skew) e tente novamente.');
+                            } else {
+                                throw new Error('Tempo esgotado ao atualizar senha.');
+                            }
+                        }
+                        throw pwdErr;
+                    }
                 }
             }
 
