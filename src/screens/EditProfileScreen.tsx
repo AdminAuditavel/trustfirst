@@ -47,7 +47,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 // Default to auth phone if available
                 let currentPhone = user.phone || '';
 
-                const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+                const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
                 if (profile) {
                     setName(profile.name || '');
                     setAvatarUrl(profile.avatar_url || '');

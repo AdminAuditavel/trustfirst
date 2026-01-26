@@ -9,7 +9,10 @@ const PrivateProfileScreen = ({ onChangeView, onBack }: { onChangeView: (view: V
     useEffect(() => {
         supabase.auth.getUser().then(async ({ data: { user } }) => {
             if (user) {
-                const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
+                const { data: profile, error } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
+                if (error) {
+                    console.error("[PrivateProfile] Error fetching profile:", error);
+                }
                 setUser(profile || user);
             }
         });

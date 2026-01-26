@@ -14,13 +14,22 @@ const PublicStoreScreen = ({ onChangeView, onBack, targetUserId }: { onChangeVie
             if (!targetUserId) return;
             // This view isn't available for real profiles yet so we can skip logic or just mock
             // Mocking Juliana for demo if needed, or if it is a real user id, fetch it
-            const { data } = await supabase.from('users').select('*').eq('id', targetUserId).single();
-            if (data) setUser(data);
-            else setUser({
-                name: 'Juliana Santos',
-                location: 'São Paulo, SP',
-                avatar_url: IMAGES.avatarJuliana
-            })
+            const { data, error } = await supabase.from('users').select('*').eq('id', targetUserId).maybeSingle();
+
+            if (error) {
+                console.error("[PublicStore] Error fetching user:", error);
+            }
+
+            if (data) {
+                setUser(data);
+            } else {
+                console.log("[PublicStore] User not found (or new), using mock data.");
+                setUser({
+                    name: 'Juliana Santos',
+                    location: 'São Paulo, SP',
+                    avatar_url: IMAGES.avatarJuliana
+                })
+            }
         };
         fetchUser();
     }, [targetUserId]);

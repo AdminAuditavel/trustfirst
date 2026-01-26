@@ -47,15 +47,24 @@ const App: React.FC = () => {
     }
 
     try {
-      const { data } = await supabase.from('users').select('id, name, avatar_url').eq('id', currentSession.user.id).single();
+      const { data, error } = await supabase.from('users').select('id, name, avatar_url').eq('id', currentSession.user.id).maybeSingle();
+
+      if (error) {
+        console.error("Profile check error:", error);
+        setHasProfile(false);
+        return false;
+      }
+
       const exists = !!(data && data.name);
+      console.log(`[App] checkProfile: ${exists ? 'Found' : 'Not Found'} for ${currentSession.user.id}`);
+
       setHasProfile(exists);
       if (data) {
         setUserAvatar(data.avatar_url);
       }
       return exists;
     } catch (error) {
-      console.error("Profile check error:", error);
+      console.error("Profile check unexpected error:", error);
       setHasProfile(false);
       return false;
     } finally {
