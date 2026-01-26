@@ -169,7 +169,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
                 // Create a timeout promise that rejects
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('timeout_pwd')), 15000)
+                    setTimeout(() => reject(new Error('timeout_pwd')), 3000)
                 );
 
                 try {
@@ -277,7 +277,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 // Wrap in timeout
                 const upsertResp: any = await withTimeout(
                     Promise.resolve(supabase.from('users').upsert(updates).select()),
-                    10000 // Reduced to 10s to fail faster to fallback
+                    3000 // Reduced to 3s to fail faster to fallback
                 );
                 if (upsertResp?.error) throw upsertResp.error;
                 upsertData = upsertResp.data;
