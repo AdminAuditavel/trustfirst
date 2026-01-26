@@ -158,7 +158,12 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
             if (password) {
                 console.log('[Profile] updating password for user', user.id);
-                const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+                // Wrap in timeout
+                const { error: pwdError } = await withTimeout(
+                    Promise.resolve(supabase.auth.updateUser({ password: password })),
+                    10000
+                ) as any;
+
                 console.log('[Profile] updateUser result, pwdError:', pwdError);
                 if (pwdError) {
                     console.error('[Profile] updateUser failed', pwdError);
@@ -167,7 +172,9 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             }
 
             const phoneValue = phone || user.phone || '';
+            console.log('[Profile] Hashing phone:', phoneValue);
             const phoneHash = await hashPhone(phoneValue);
+            console.log('[Profile] Phone hash result:', phoneHash ? 'OK' : 'Empty');
 
             const updates: any = {
                 id: user.id,
@@ -186,7 +193,12 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             console.log('[Profile] upserting user', { updates });
 
             // upsert - log response fully to catch 406 or other errors
-            const upsertResp: any = await supabase.from('users').upsert(updates).select();
+            // Wrap in timeout
+            const upsertResp: any = await withTimeout(
+                Promise.resolve(supabase.from('users').upsert(updates).select()),
+                10000
+            );
+
             console.log('[Profile] upsertResp', upsertResp);
 
             if (upsertResp?.error) {
