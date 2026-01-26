@@ -6,6 +6,7 @@ import { IBGEUF, IBGECity } from '../../types';
 const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => void, isInitialSetup?: boolean }) => {
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
 
     const [ufs, setUfs] = useState<IBGEUF[]>([]);
@@ -19,7 +20,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     const [msg, setMsg] = useState('');
     const [isUploading, setIsUploading] = useState(false);
 
-    // Helper: wrap promise with timeout to avoid indefinite waiting
+    // Helper: wrap promise with timeout to avoid indefinite waiting (kept for non-critical ops)
     const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
         return new Promise<T>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -38,36 +39,48 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     useEffect(() => {
         fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
             .then(response => response.json())
-            .then(data => setUfs(data));
+            .then(data => setUfs(data))
+            .catch(err => console.warn('IBGE states fetch failed', err));
 
         // Load initial data
         const loadData = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                // Default to auth phone if available
-                let currentPhone = user.phone || '';
-
-                const { data: profile } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
-                if (profile) {
-                    setName(profile.name || '');
-                    setAvatarUrl(profile.avatar_url || '');
-                    // Prioritize profile phone if set
-                    if (profile.phone) {
-                        currentPhone = profile.phone;
-                    }
-                    if (profile.location) {
-                        try {
-                            const parts = profile.location.split(' - ');
-                            if (parts.length === 2 && parts[1].length === 2) {
-                                setSelectedUf(parts[1]);
-                                // We can't easily auto-select city without proper async chain or complex logic
-                                // For now we set it, and if it matches the loaded city list (triggered by effect), it works
-                                setSelectedCity(parts[0]);
-                            }
-                        } catch (e) { }
-                    }
+            try {
+                const { data: { user }, error: userErr } = await supabase.auth.getUser();
+                if (userErr) {
+                    console.error('getUser error', userErr);
+                    return;
                 }
-                setPhone(currentPhone);
+                if (user) {
+                    // Default to auth phone if available
+                    let currentPhone = user.phone || '';
+
+                    // Use maybeSingle to avoid 406 when no row exists
+                    const { data: profile, error: profileErr } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
+                    if (profileErr) {
+                        console.warn('profile load error', profileErr);
+                    }
+                    if (profile) {
+                        setName(profile.name || '');
+                        setAvatarUrl(profile.avatar_url || '');
+                        // Prioritize profile phone if set
+                        if (profile.phone) {
+                            currentPhone = profile.phone;
+                        }
+                        if (profile.location) {
+                            try {
+                                const parts = profile.location.split(' - ');
+                                if (parts.length === 2 && parts[1].length === 2) {
+                                    setSelectedUf(parts[1]);
+                                    // We can't reliably auto-select city without loading chain; set it and rely on city list effect
+                                    setSelectedCity(parts[0]);
+                                }
+                            } catch (e) { /* ignore */ }
+                        }
+                    }
+                    setPhone(currentPhone);
+                }
+            } catch (e) {
+                console.error('loadData unexpected error', e);
             }
         };
         loadData();
@@ -77,13 +90,15 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         if (selectedUf) {
             fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedUf}/municipios`)
                 .then(response => response.json())
-                .then(data => setCities(data));
+                .then(data => setCities(data))
+                .catch(err => {
+                    console.warn('Failed to load cities for', selectedUf, err);
+                    setCities([]);
+                });
         } else {
             setCities([]);
         }
     }, [selectedUf]);
-
-
 
     const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         if (!event.target.files || event.target.files.length === 0) {
@@ -96,30 +111,29 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         const fileName = `${Date.now()}.${fileExt}`;
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user }, error: userErr } = await supabase.auth.getUser();
+            if (userErr) throw userErr;
             if (!user) throw new Error("Usuário não autenticado");
 
             const filePath = `${user.id}/${fileName}`;
 
-            const { error: uploadError } = await withTimeout(
-                Promise.resolve(supabase.storage
-                    .from('avatars')
-                    .upload(filePath, file)),
-                10000
-            ) as any;
+            console.log('[Avatar] uploading to storage', { filePath, fileName, userId: user.id });
+            const uploadPromise = supabase.storage.from('avatars').upload(filePath, file);
 
-            if (uploadError) {
-                throw uploadError;
+            // keep a longer timeout for uploads (20s)
+            const uploadResult: any = await withTimeout(uploadPromise, 20000).catch(err => { throw err; });
+
+            if (uploadResult?.error) {
+                console.error('storage.upload error', uploadResult.error);
+                throw uploadResult.error;
             }
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(filePath);
-
-            setAvatarUrl(publicUrl);
+            const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+            setAvatarUrl(publicUrlData.publicUrl);
         } catch (error: any) {
             console.error('Error uploading avatar:', error);
-            setError('Erro ao enviar imagem. Tente novamente.');
+            const more = (error?.status || error?.statusCode) ? ` (status: ${error.status || error.statusCode})` : '';
+            setError('Erro ao enviar imagem. Tente novamente.' + more);
         } finally {
             setIsUploading(false);
         }
@@ -132,16 +146,27 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         setMsg('');
 
         try {
-            const { data: { user } } = await withTimeout(Promise.resolve(supabase.auth.getUser()), 5000);
+            console.log('[Profile] starting submit');
+
+            // getUser without aggressive timeout so we can see server response
+            const { data: { user }, error: getUserErr } = await supabase.auth.getUser();
+            if (getUserErr) {
+                console.error('[Profile] getUserErr', getUserErr);
+                throw getUserErr;
+            }
             if (!user) throw new Error('Usuário não autenticado');
 
             if (password) {
-                const { error: pwdError } = await withTimeout(Promise.resolve(supabase.auth.updateUser({ password: password })), 10000) as any;
-                if (pwdError) throw pwdError;
+                console.log('[Profile] updating password for user', user.id);
+                const { error: pwdError } = await supabase.auth.updateUser({ password: password });
+                console.log('[Profile] updateUser result, pwdError:', pwdError);
+                if (pwdError) {
+                    console.error('[Profile] updateUser failed', pwdError);
+                    throw pwdError;
+                }
             }
 
             const phoneValue = phone || user.phone || '';
-
             const phoneHash = await hashPhone(phoneValue);
 
             const updates: any = {
@@ -158,21 +183,35 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 updates.location = `${selectedCity} - ${selectedUf}`;
             }
 
-            const { error: upsertError } = await withTimeout(Promise.resolve(supabase.from('users').upsert(updates).select()), 10000) as any;
+            console.log('[Profile] upserting user', { updates });
 
-            if (upsertError) {
+            // upsert - log response fully to catch 406 or other errors
+            const upsertResp: any = await supabase.from('users').upsert(updates).select();
+            console.log('[Profile] upsertResp', upsertResp);
+
+            if (upsertResp?.error) {
+                const upErr = upsertResp.error;
+                console.error('[Profile] upsert error', upErr);
+
+                // If server returned 406, give specific message to investigate
+                if (upErr.status === 406 || upErr?.code === '406') {
+                    setError('Erro de comunicação com o servidor (406). Verifique CORS/API e a URL/ANON_KEY do Supabase.');
+                    throw upErr;
+                }
+
                 // Handle unique constraints explicitly
-                if (upsertError.code === '23505') { // unique_violation code
-                    if (upsertError.message?.includes('users_phone_key') || upsertError.details?.includes('phone')) {
+                if (upErr.code === '23505') {
+                    if (upErr.message?.includes('users_phone_key') || upErr.details?.includes('phone')) {
                         throw new Error('Este telefone já está cadastrado por outro usuário.');
                     }
-                    if (upsertError.message?.includes('users_email_key') || upsertError.details?.includes('email')) {
+                    if (upErr.message?.includes('users_email_key') || upErr.details?.includes('email')) {
                         throw new Error('Este e-mail já está cadastrado por outro usuário.');
                     }
                 }
-                throw upsertError;
+                throw upErr;
             }
 
+            // success path
             if (!isInitialSetup) {
                 setMsg('Perfil atualizado com sucesso!');
                 setTimeout(() => {
@@ -183,8 +222,15 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             }
 
         } catch (err: any) {
-            console.error(err);
-            setError(err.message || 'Erro ao atualizar perfil.');
+            console.error('[Profile] submit error (final)', err);
+            // distinguish timeout vs server errors
+            if (err?.message === 'timeout') {
+                setError('O servidor demorou para responder. Tente novamente em alguns segundos.');
+            } else if (err?.status === 406) {
+                setError('Erro 406: Requisição não aceita pelo servidor. Verifique a URL e CORS do Supabase.');
+            } else {
+                setError(err.message || 'Erro ao atualizar perfil.');
+            }
         } finally {
             setLoading(false);
         }
@@ -237,15 +283,25 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{isInitialSetup ? 'Senha de Acesso' : 'Nova Senha (opcional)'}</label>
-                        <input
-                            type="password"
-                            required={isInitialSetup}
-                            minLength={6}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
-                            placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                required={isInitialSetup}
+                                minLength={6}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                                placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(p => !p)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                            >
+                                {showPassword ? 'Ocultar' : 'Mostrar'}
+                            </button>
+                        </div>
                         <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>
                     </div>
 
