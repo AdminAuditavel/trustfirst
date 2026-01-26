@@ -138,6 +138,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         setError('');
         setMsg('');
 
+        let currentAccessToken = '';
         try {
             console.log('[Profile] starting submit');
 
@@ -146,9 +147,11 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             if (sessionErr) {
                 console.warn('[Profile] session check error', sessionErr);
                 // Try to refresh just in case
-                await supabase.auth.refreshSession();
+                const { data: refreshed } = await supabase.auth.refreshSession();
+                if (refreshed.session) currentAccessToken = refreshed.session.access_token;
             } else if (session) {
                 console.log('[Profile] session active', session.user.id);
+                currentAccessToken = session.access_token;
             }
 
             // getUser without aggressive timeout so we can see server response
@@ -182,8 +185,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                     if (pwdErr.message === 'timeout_pwd') {
                         console.warn('[Profile] Password update timed out via SDK, trying raw fetch fallback...');
                         try {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (session?.access_token) {
+                            if (currentAccessToken) {
                                 console.log('[Profile] Session token retrieved for fallback');
                                 const rawUrl = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/user`;
 
@@ -197,7 +199,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                                     headers: {
                                         'Content-Type': 'application/json',
                                         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                                        'Authorization': `Bearer ${session.access_token}`
+                                        'Authorization': `Bearer ${currentAccessToken}`
                                     },
                                     body: JSON.stringify({ password: password }),
                                     signal: controller.signal
