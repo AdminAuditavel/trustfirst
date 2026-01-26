@@ -270,16 +270,68 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             console.log('[Profile] upserting user', { updates });
 
             // upsert - log response fully to catch 406 or other errors
-            // Wrap in timeout
-            const upsertResp: any = await withTimeout(
-                Promise.resolve(supabase.from('users').upsert(updates).select()),
-                15000 // 15s timeout
-            );
+            let upsertError = null;
+            let upsertData = null;
 
-            console.log('[Profile] upsertResp', upsertResp);
+            try {
+                // Wrap in timeout
+                const upsertResp: any = await withTimeout(
+                    Promise.resolve(supabase.from('users').upsert(updates).select()),
+                    10000 // Reduced to 10s to fail faster to fallback
+                );
+                if (upsertResp?.error) throw upsertResp.error;
+                upsertData = upsertResp.data;
 
-            if (upsertResp?.error) {
-                const upErr = upsertResp.error;
+            } catch (err: any) {
+                console.warn('[Profile] SDK upsert failed/timed out, trying raw fetch fallback...', err);
+
+                if (currentAccessToken) {
+                    try {
+                        const rawUrl = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/users`;
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                        console.log('[Profile] Sending raw POST (upsert) to', rawUrl);
+                        const rawResp = await fetch(rawUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                                'Authorization': `Bearer ${currentAccessToken}`,
+                                'Prefer': 'resolution=merge-duplicates,return=representation'
+                            },
+                            body: JSON.stringify(updates),
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeoutId);
+
+                        if (rawResp.ok) {
+                            console.log('[Profile] Raw upsert success');
+                            const data = await rawResp.json();
+                            upsertData = data;
+                        } else {
+                            const text = await rawResp.text();
+                            console.error('[Profile] Raw upsert failed:', text);
+                            // Treat 401/403 as critical auth errors
+                            if (rawResp.status === 401 || rawResp.status === 403) {
+                                throw new Error(`Erro de autorização (${rawResp.status}). Sua sessão pode ter expirado.`);
+                            }
+                            throw new Error(`Erro no fallback de dados: ${rawResp.status} ${text}`);
+                        }
+                    } catch (fallbackErr: any) {
+                        console.error('[Profile] Raw fallback exception', fallbackErr);
+                        if (fallbackErr.message && fallbackErr.message.includes('Erro de autorização')) {
+                            throw fallbackErr;
+                        }
+                        upsertError = err; // Throw original error if fallback fails
+                    }
+                } else {
+                    upsertError = err;
+                }
+            }
+
+            if (upsertError) {
+                const upErr: any = upsertError;
                 console.error('[Profile] upsert error', upErr);
 
                 if (upErr.status === 406 || upErr?.code === '406') {
