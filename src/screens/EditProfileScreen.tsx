@@ -148,6 +148,16 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         try {
             console.log('[Profile] starting submit');
 
+            // 1. Force session check/refresh before critical ops
+            const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+            if (sessionErr) {
+                console.warn('[Profile] session check error', sessionErr);
+                // Try to refresh just in case
+                await supabase.auth.refreshSession();
+            } else if (session) {
+                console.log('[Profile] session active', session.user.id);
+            }
+
             // getUser without aggressive timeout so we can see server response
             const { data: { user }, error: getUserErr } = await supabase.auth.getUser();
             if (getUserErr) {
@@ -158,16 +168,34 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
 
             if (password) {
                 console.log('[Profile] updating password for user', user.id);
-                // Wrap in timeout
-                const { error: pwdError } = await withTimeout(
-                    Promise.resolve(supabase.auth.updateUser({ password: password })),
-                    10000
-                ) as any;
+                // Wrap in strict timeout using Promise.race to guarantee unlock
+                const updatePwdPromise = supabase.auth.updateUser({ password: password });
 
-                console.log('[Profile] updateUser result, pwdError:', pwdError);
-                if (pwdError) {
-                    console.error('[Profile] updateUser failed', pwdError);
-                    throw pwdError;
+                // Create a timeout promise that rejects
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('timeout_pwd')), 15000)
+                );
+
+                try {
+                    const { error: pwdError } = await Promise.race([updatePwdPromise, timeoutPromise]) as any;
+
+                    console.log('[Profile] updateUser result, pwdError:', pwdError);
+                    if (pwdError) {
+                        console.error('[Profile] updateUser failed', pwdError);
+                        throw pwdError;
+                    }
+                } catch (pwdErr: any) {
+                    if (pwdErr.message === 'timeout_pwd') {
+                        console.error('[Profile] Password update timed out');
+                        // If it's initial setup, this is critical
+                        if (isInitialSetup) {
+                            throw new Error('O servidor demorou para responder ao atualizar a senha. Verifique sua conexão e tente novamente.');
+                        } else {
+                            // If just editing, maybe warn but proceed? Or fail safe. Let's fail safe.
+                            throw new Error('Tempo esgotado ao atualizar senha.');
+                        }
+                    }
+                    throw pwdErr;
                 }
             }
 
@@ -196,7 +224,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             // Wrap in timeout
             const upsertResp: any = await withTimeout(
                 Promise.resolve(supabase.from('users').upsert(updates).select()),
-                10000
+                15000 // 15s timeout
             );
 
             console.log('[Profile] upsertResp', upsertResp);
@@ -236,7 +264,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         } catch (err: any) {
             console.error('[Profile] submit error (final)', err);
             // distinguish timeout vs server errors
-            if (err?.message === 'timeout') {
+            if (err?.message === 'timeout' || err?.message === 'timeout_pwd') {
                 setError('O servidor demorou para responder. Tente novamente em alguns segundos.');
             } else if (err?.status === 406) {
                 setError('Erro 406: Requisição não aceita pelo servidor. Verifique a URL e CORS do Supabase.');
