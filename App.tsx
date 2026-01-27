@@ -175,8 +175,10 @@ const App: React.FC = () => {
         return <WelcomeScreen onStart={() => setView(ViewState.AUTH)} onLogin={() => setView(ViewState.AUTH)} />;
       case ViewState.AUTH:
         return <AuthScreen
-          onLogin={() => {
-            checkProfile(session).then(() => setView(ViewState.HOME));
+          onLogin={(newSession) => {
+            const currentSession = newSession || session;
+            if (newSession) setSession(newSession);
+            checkProfile(currentSession).then(() => setView(ViewState.HOME));
           }}
           onCompleteProfile={() => setView(ViewState.COMPLETE_PROFILE)}
           onForgotPassword={() => setView(ViewState.FORGOT_PASSWORD)}

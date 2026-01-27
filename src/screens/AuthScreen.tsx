@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
-const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin: () => void, onCompleteProfile: () => void, onForgotPassword: () => void }) => {
+const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin: (session?: any) => void, onCompleteProfile: () => void, onForgotPassword: () => void }) => {
     const [step, setStep] = useState<'check_email' | 'password' | 'magic_link'>('check_email');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -223,25 +223,37 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                         throw new Error(`Login failed: ${messageText}`);
                     }
 
-                    // Set session in the client so SDK state is correct
+                    // FIX: Construct session object manually
+                    const sessionObj = {
+                        access_token: rawJson.access_token,
+                        refresh_token: rawJson.refresh_token,
+                        expires_in: rawJson.expires_in,
+                        expires_at: rawJson.expires_at,
+                        token_type: rawJson.token_type,
+                        user: rawJson.user
+                    };
+
+                    // FIX: Attempt setSession with timeout so we don't hang if SDK is stuck
                     try {
-                        // supabase.auth.setSession expects an object with access_token/refresh_token
-                        const { data: setData, error: setErr } = await supabase.auth.setSession({
-                            access_token: rawJson.access_token,
-                            refresh_token: rawJson.refresh_token
-                        } as any);
+                        console.log('[Auth] attempting setSession with timeout');
+                        const { data: setData, error: setErr } = await withTimeout(
+                            supabase.auth.setSession({
+                                access_token: rawJson.access_token,
+                                refresh_token: rawJson.refresh_token
+                            } as any),
+                            5000 // 5s max wait
+                        );
                         if (setErr) {
                             console.warn('[Auth] setSession error', setErr);
-                            // still continue to onLogin if token was returned successfully
                         } else {
                             console.log('[Auth] setSession success', setData);
                         }
                     } catch (setEx) {
-                        console.warn('[Auth] setSession threw', setEx);
+                        console.warn('[Auth] setSession timed out or threw, proceeding with manual session', setEx);
                     }
 
-                    // successful fallback login
-                    onLogin();
+                    // FIX: Pass valid session object to parent app
+                    onLogin(sessionObj);
                     return;
                 } else {
                     // non-timeout SDK error: rethrow to outer catch
@@ -264,7 +276,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
 
             if (session || user) {
                 console.log('[Auth] password login successful', { user, session });
-                onLogin();
+                onLogin(session); // FIX: pass session
                 return;
             }
 
@@ -299,19 +311,32 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     throw new Error(`Login failed: ${messageText}`);
                 }
 
-                // Set session
+                // FIX: Construct session object manually
+                const sessionObj = {
+                    access_token: rawJson.access_token,
+                    refresh_token: rawJson.refresh_token,
+                    expires_in: rawJson.expires_in,
+                    expires_at: rawJson.expires_at,
+                    token_type: rawJson.token_type,
+                    user: rawJson.user
+                };
+
+                // FIX: Attempt setSession with timeout
                 try {
-                    const { data: setData, error: setErr } = await supabase.auth.setSession({
-                        access_token: rawJson.access_token,
-                        refresh_token: rawJson.refresh_token
-                    } as any);
+                    const { data: setData, error: setErr } = await withTimeout(
+                        supabase.auth.setSession({
+                            access_token: rawJson.access_token,
+                            refresh_token: rawJson.refresh_token
+                        } as any),
+                        5000
+                    );
                     if (setErr) console.warn('[Auth] setSession error', setErr);
                     else console.log('[Auth] setSession success', setData);
                 } catch (setEx) {
                     console.warn('[Auth] setSession threw', setEx);
                 }
 
-                onLogin();
+                onLogin(sessionObj); // FIX: pass sessionObj
                 return;
             } catch (rawErr) {
                 console.error('[Auth] raw fallback error', rawErr);
