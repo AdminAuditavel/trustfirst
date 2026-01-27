@@ -1,3 +1,5 @@
+//src/screens/AuthScreen.tsx
+
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -24,61 +26,112 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         });
     };
 
+    const callCheckUserExistsViaFetch = async (normalizedEmail: string) => {
+        const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+        const endpoint = `${projectUrl}/rest/v1/rpc/check_user_exists`;
+
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': anonKey,
+                'Authorization': `Bearer ${anonKey}`
+            },
+            body: JSON.stringify({ email_arg: normalizedEmail })
+        });
+
+        const text = await resp.text();
+
+        // Try parse JSON (some responses may be raw true/false)
+        try {
+            const parsed = JSON.parse(text);
+            return { httpStatus: resp.status, data: parsed, ok: resp.ok, raw: text };
+        } catch (e) {
+            return { httpStatus: resp.status, data: text === 'true' ? true : (text === 'false' ? false : text), ok: resp.ok, raw: text };
+        }
+    };
+
     const handleCheckEmail = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
-        console.log('[Auth] handleCheckEmail start', { email });
+
+        // Normalize email on the client to match DB normalization (trim + lower)
+        const normalizedEmail = email.trim().toLowerCase();
+        console.log('[Auth] handleCheckEmail start', { email: normalizedEmail });
 
         try {
-            const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
+            // Use REST/fetch to avoid intermittent SDK rpc timeouts in this environment
+            console.log('[Auth] calling REST RPC via fetch');
+            const fetchPromise = callCheckUserExistsViaFetch(normalizedEmail);
 
-            // wrap with timeout (5s)
-            // Use Promise.resolve to handle any thenable/builder issues with types
-            const rpcResult: any = await withTimeout(Promise.resolve(rpcPromise), 5000);
+            // wrap with timeout (10s)
+            const rpcResult: any = await withTimeout(fetchPromise, 10000);
 
-            console.log('[Auth] rpcResult', rpcResult);
+            console.log('[Auth] fetch rpcResult', rpcResult);
 
-            const userExists = rpcResult?.data ?? rpcResult; // adjust depending on supabase client shape
+            // rpcResult shape: { httpStatus, data, ok, raw } or fallback
             const rpcError = rpcResult?.error;
+            const userExistsRaw = rpcResult?.data ?? rpcResult;
 
             if (rpcError) {
                 console.error('[Auth] rpcError', rpcError);
                 throw rpcError;
             }
 
-            // NOTE: depending on how the Postgres function returns, userExists might be true/false,
-            // or an object/array. Inspect rpcResult in console to confirm.
-            const existsFlag = !!userExists;
+            // Interpret userExistsRaw into boolean robustly
+            let existsFlag = false;
+            if (typeof userExistsRaw === 'boolean') {
+                existsFlag = userExistsRaw;
+            } else if (Array.isArray(userExistsRaw) && userExistsRaw.length > 0) {
+                const first = userExistsRaw[0];
+                if (typeof first === 'boolean') {
+                    existsFlag = first;
+                } else if (typeof first === 'object' && first !== null) {
+                    const v = Object.values(first).find(val => typeof val === 'boolean' || typeof val === 'number' || typeof val === 'string');
+                    existsFlag = !!v;
+                } else {
+                    existsFlag = !!first;
+                }
+            } else {
+                existsFlag = !!userExistsRaw;
+            }
+
             console.log('[Auth] existsFlag', existsFlag);
 
             if (existsFlag) {
                 // User exists -> Show password screen
+                setEmail(normalizedEmail);
                 setStep('password');
             } else {
                 // Verified New User -> Send Magic Link (also wrapped with timeout)
-                console.log('[Auth] sending magic link to', email);
-                const otpResult: any = await withTimeout(
-                    supabase.auth.signInWithOtp({
-                        email,
-                        options: {
-                            emailRedirectTo: window.location.origin,
-                            shouldCreateUser: true,
-                        },
-                    }),
-                    5000
-                );
+                console.log('[Auth] sending magic link to', normalizedEmail);
+
+                setEmail(normalizedEmail);
+
+                const otpPromise = supabase.auth.signInWithOtp({
+                    email: normalizedEmail,
+                    options: {
+                        emailRedirectTo: window.location.origin,
+                        shouldCreateUser: true,
+                    },
+                });
+
+                const otpResult: any = await withTimeout(otpPromise, 10000);
 
                 console.log('[Auth] otpResult', otpResult);
 
-                if (otpResult?.error) throw otpResult.error;
+                const otpError = otpResult?.error ?? (otpResult?.data?.error);
+                if (otpError) throw otpError;
+
                 setStep('magic_link');
             }
         } catch (err: any) {
             console.error('Check email error:', err);
 
-            const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
-            const isTimeout = err.message === 'timeout' || err.message?.includes('Tempo limite');
+            const isRateLimit = err?.message?.includes('rate limit') || err?.message?.includes('429') || err?.status === 429;
+            const isTimeout = err?.message === 'timeout' || err?.message?.includes('Tempo limite');
 
             if (isRateLimit) {
                 setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
@@ -88,8 +141,11 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 setMessage('Verificação instável. Tentando envio de link mágico...');
 
                 try {
+                    const normalizedEmail = email.trim().toLowerCase();
+                    setEmail(normalizedEmail);
+
                     const signInPromise = supabase.auth.signInWithOtp({
-                        email,
+                        email: normalizedEmail,
                         options: {
                             emailRedirectTo: window.location.origin,
                             shouldCreateUser: true,
@@ -97,16 +153,17 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     });
 
                     // Also timeout the fallback
-                    const { error: otpError } = await withTimeout(signInPromise, 5000) as any;
+                    const otpResult: any = await withTimeout(signInPromise, 10000);
 
+                    const otpError = otpResult?.error ?? (otpResult?.data?.error);
                     if (otpError) throw otpError;
 
                     setStep('magic_link');
                 } catch (otpErr: any) {
-                    if (otpErr.message === 'timeout') {
+                    if (otpErr?.message === 'timeout') {
                         setMessage('O servidor demorou para responder. Verifique sua conexão.');
                     } else {
-                        setMessage(otpErr.message || 'Erro ao conectar. Verifique sua rede.');
+                        setMessage(otpErr?.message || 'Erro ao conectar. Verifique sua rede.');
                     }
                 }
             }
@@ -121,18 +178,165 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setLoading(true);
         setMessage('');
 
-        try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
+        const normalizedEmail = email.trim().toLowerCase();
+        console.log('[Auth] handlePasswordLogin start', { email: normalizedEmail });
 
-            if (error) throw error;
-            onLogin();
+        try {
+            // Try SDK signInWithPassword with timeout
+            const signInPromise = supabase.auth.signInWithPassword({
+                email: normalizedEmail,
+                password
+            } as any);
+
+            let result: any;
+            try {
+                result = await withTimeout(signInPromise, 10000);
+                console.log('[Auth] signInWithPassword result', result);
+            } catch (sdkErr: any) {
+                // If SDK timed out, try REST token fallback
+                if (sdkErr?.message === 'timeout') {
+                    console.warn('[Auth] signInWithPassword timed out, attempting REST token fallback');
+                    // REST token fallback
+                    const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+                    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+                    const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
+                    const jsonBody = JSON.stringify({ email: normalizedEmail, password });
+
+                    const rawResp = await withTimeout(
+                        fetch(tokenUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': anonKey,
+                                'Authorization': `Bearer ${anonKey}`
+                            },
+                            body: jsonBody
+                        }),
+                        10000
+                    );
+
+                    const rawJson = await rawResp.json();
+                    console.log('[Auth] raw token response', rawResp.status, rawJson);
+
+                    if (!rawResp.ok) {
+                        const messageText = rawJson?.error_description || rawJson?.error || JSON.stringify(rawJson);
+                        throw new Error(`Login failed: ${messageText}`);
+                    }
+
+                    // Set session in the client so SDK state is correct
+                    try {
+                        // supabase.auth.setSession expects an object with access_token/refresh_token
+                        const { data: setData, error: setErr } = await supabase.auth.setSession({
+                            access_token: rawJson.access_token,
+                            refresh_token: rawJson.refresh_token
+                        } as any);
+                        if (setErr) {
+                            console.warn('[Auth] setSession error', setErr);
+                            // still continue to onLogin if token was returned successfully
+                        } else {
+                            console.log('[Auth] setSession success', setData);
+                        }
+                    } catch (setEx) {
+                        console.warn('[Auth] setSession threw', setEx);
+                    }
+
+                    // successful fallback login
+                    onLogin();
+                    return;
+                } else {
+                    // non-timeout SDK error: rethrow to outer catch
+                    throw sdkErr;
+                }
+            }
+
+            // If we reach here, SDK resolved before timeout
+            const error = result?.error ?? result?.data?.error;
+            const data = result?.data ?? result;
+
+            if (error) {
+                console.warn('[Auth] signInWithPassword error', error);
+                throw error;
+            }
+
+            // When successful, supabase v2 often returns data.session and data.user
+            const session = data?.session ?? null;
+            const user = data?.user ?? null;
+
+            if (session || user) {
+                console.log('[Auth] password login successful', { user, session });
+                onLogin();
+                return;
+            }
+
+            // If SDK returned something unexpected, fallthrough to REST fallback
+            console.warn('[Auth] signInWithPassword returned unexpected payload, falling back to REST token flow', result);
+
+            // Fallback: call auth/v1/token endpoint directly (grant_type=password)
+            try {
+                const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+                const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
+                const jsonBody = JSON.stringify({ email: normalizedEmail, password });
+
+                const rawResp = await withTimeout(
+                    fetch(tokenUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': anonKey,
+                            'Authorization': `Bearer ${anonKey}`
+                        },
+                        body: jsonBody
+                    }),
+                    10000
+                );
+
+                const rawJson = await rawResp.json();
+                console.log('[Auth] raw token response', rawResp.status, rawJson);
+
+                if (!rawResp.ok) {
+                    const messageText = rawJson?.error_description || rawJson?.error || JSON.stringify(rawJson);
+                    throw new Error(`Login failed: ${messageText}`);
+                }
+
+                // Set session
+                try {
+                    const { data: setData, error: setErr } = await supabase.auth.setSession({
+                        access_token: rawJson.access_token,
+                        refresh_token: rawJson.refresh_token
+                    } as any);
+                    if (setErr) console.warn('[Auth] setSession error', setErr);
+                    else console.log('[Auth] setSession success', setData);
+                } catch (setEx) {
+                    console.warn('[Auth] setSession threw', setEx);
+                }
+
+                onLogin();
+                return;
+            } catch (rawErr) {
+                console.error('[Auth] raw fallback error', rawErr);
+                throw rawErr;
+            }
         } catch (err: any) {
-            setMessage('Senha incorreta ou erro no login.');
+            console.error('[Auth] Password login failed', err);
+
+            const isTimeout = err?.message === 'timeout' || err?.message?.includes('Tempo limite');
+            if (isTimeout) {
+                setMessage('O servidor demorou para responder. Tente novamente.');
+            } else {
+                // Show a readable message for common auth errors
+                const msg = err?.message || (err?.error || 'Erro no login.');
+                if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('senha') || msg.toLowerCase().includes('password')) {
+                    setMessage('Senha incorreta ou usuário inexistente.');
+                } else if (msg.toLowerCase().includes('authorization') || msg.toLowerCase().includes('expired')) {
+                    setMessage('Erro de autorização. Faça login novamente.');
+                } else {
+                    setMessage(typeof msg === 'string' ? msg : 'Erro ao conectar. Tente novamente.');
+                }
+            }
         } finally {
             setLoading(false);
+            console.log('[Auth] handlePasswordLogin finished');
         }
     };
 

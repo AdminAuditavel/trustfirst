@@ -1,3 +1,5 @@
+//src/screens/EditProfileScreen.tsx
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { hashPhone } from '../../lib/utils';
@@ -138,6 +140,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
         }
     };
 
+    // Instrumented & resilient handleSubmit
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -149,33 +152,43 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             console.log('[Profile] starting submit');
 
             // 1. Force session check/refresh before critical ops
+            console.log('[Profile] before getSession');
             const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+            console.log('[Profile] after getSession', { session, sessionErr });
+
             if (sessionErr) {
                 console.warn('[Profile] session check error', sessionErr);
-                // Try to refresh just in case
-                const { data: refreshed } = await supabase.auth.refreshSession();
-                if (refreshed.session) currentAccessToken = refreshed.session.access_token;
+                // Try to refresh just in case (note: refreshSession may not exist on all SDK versions)
+                try {
+                    const { data: refreshed, error: refreshErr } = await (supabase.auth as any).refreshSession?.() ?? { data: null, error: null };
+                    console.log('[Profile] refreshSession result', { refreshed, refreshErr });
+                    if (refreshed?.session) currentAccessToken = refreshed.session.access_token;
+                } catch (refreshEx) {
+                    console.warn('[Profile] refreshSession failed', refreshEx);
+                }
             } else if (session) {
-                console.log('[Profile] session active', session.user.id);
+                console.log('[Profile] session active', session.user?.id);
                 currentAccessToken = session.access_token;
             }
 
             // getUser without aggressive timeout so we can see server response
+            console.log('[Profile] before getUser');
             const { data: { user }, error: getUserErr } = await supabase.auth.getUser();
+            console.log('[Profile] after getUser', { user, getUserErr });
             if (getUserErr) {
                 console.error('[Profile] getUserErr', getUserErr);
                 throw getUserErr;
             }
             if (!user) throw new Error('Usuário não autenticado');
 
+            // Update password if provided (with timeout and fallback)
             if (password) {
                 console.log('[Profile] updating password for user', user.id);
-                // Wrap in strict timeout using Promise.race to guarantee unlock
                 const updatePwdPromise = supabase.auth.updateUser({ password: password });
 
                 // Create a timeout promise that rejects
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('timeout_pwd')), 3000)
+                    setTimeout(() => reject(new Error('timeout_pwd')), 6000)
                 );
 
                 try {
@@ -258,6 +271,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 }
             }
 
+            // Hash phone (allow empty)
             const phoneValue = phone || user.phone || '';
             const phoneHash = await hashPhone(phoneValue);
 
@@ -281,10 +295,10 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             let upsertData = null;
 
             try {
-                // Wrap in timeout
+                // Use a slightly longer timeout to avoid false falls; 3s may be too short in some networks
                 const upsertResp: any = await withTimeout(
                     Promise.resolve(supabase.from('users').upsert(updates).select()),
-                    3000 // Reduced to 3s to fail faster to fallback
+                    8000
                 );
                 if (upsertResp?.error) throw upsertResp.error;
                 upsertData = upsertResp.data;
@@ -330,7 +344,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         if (fallbackErr.message && fallbackErr.message.includes('Erro de autorização')) {
                             throw fallbackErr;
                         }
-                        upsertError = err; // Throw original error if fallback fails
+                        upsertError = err; // preserve original error if fallback fails
                     }
                 } else {
                     upsertError = err;
@@ -357,6 +371,8 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                 throw upErr;
             }
 
+            console.log('[Profile] upsert success', { upsertData });
+
             // success
             setIsEditing(false); // Switch back to read-only on success
             if (!isInitialSetup) {
@@ -379,6 +395,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             }
         } finally {
             setLoading(false);
+            console.log('[Profile] submit finished (loading false)');
         }
     };
 
