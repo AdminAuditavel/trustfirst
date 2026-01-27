@@ -36,7 +36,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         console.log('[Auth] handleCheckEmail start', { email: normalizedEmail });
 
         try {
-            // Call RPC that returns boolean (or variant). supabase.rpc usually returns { data, error }.
+            // Call RPC that returns boolean (or variant). supabase.rpc sometimes returns primitive or { data, error }.
             const rpcPromise = supabase.rpc('check_user_exists', { email_arg: normalizedEmail });
 
             // wrap with timeout (5s)
@@ -44,46 +44,45 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
 
             console.log('[Auth] rpcResult', rpcResult);
 
-            const rpcData = rpcResult?.data;
+            // Support both shapes:
+            // - supabase.rpc may return { data: <value>, error: <err> }
+            // - or may directly return a primitive boolean true/false
             const rpcError = rpcResult?.error;
+            const userExistsRaw = rpcResult?.data ?? rpcResult; // <-- key: handle both shapes
 
             if (rpcError) {
                 console.error('[Auth] rpcError', rpcError);
                 throw rpcError;
             }
 
-            // Interpret rpcData into a boolean flag safely
+            // Interpret userExistsRaw into boolean robustly
             let existsFlag = false;
-            if (typeof rpcData === 'boolean') {
-                existsFlag = rpcData;
-            } else if (Array.isArray(rpcData) && rpcData.length > 0) {
-                const first = rpcData[0];
+            if (typeof userExistsRaw === 'boolean') {
+                existsFlag = userExistsRaw;
+            } else if (Array.isArray(userExistsRaw) && userExistsRaw.length > 0) {
+                const first = userExistsRaw[0];
                 if (typeof first === 'boolean') {
                     existsFlag = first;
                 } else if (typeof first === 'object' && first !== null) {
-                    // Grab first boolean-like value in object
                     const v = Object.values(first).find(val => typeof val === 'boolean' || typeof val === 'number' || typeof val === 'string');
                     existsFlag = !!v;
                 } else {
                     existsFlag = !!first;
                 }
             } else {
-                // fallback: coerce any truthy value
-                existsFlag = !!rpcData;
+                existsFlag = !!userExistsRaw;
             }
 
             console.log('[Auth] existsFlag', existsFlag);
 
             if (existsFlag) {
                 // User exists -> Show password screen
-                // Keep the displayed email normalized for consistency
                 setEmail(normalizedEmail);
                 setStep('password');
             } else {
                 // Verified New User -> Send Magic Link (also wrapped with timeout)
                 console.log('[Auth] sending magic link to', normalizedEmail);
 
-                // ensure email state is normalized so magic_link screen displays normalized address
                 setEmail(normalizedEmail);
 
                 const otpPromise = supabase.auth.signInWithOtp({
@@ -98,7 +97,6 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
 
                 console.log('[Auth] otpResult', otpResult);
 
-                // supabase v2 usually returns { data, error } — handle both shapes
                 const otpError = otpResult?.error ?? (otpResult?.data?.error);
                 if (otpError) throw otpError;
 
