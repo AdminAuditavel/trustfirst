@@ -4,6 +4,10 @@ import { hashPhone } from '../../lib/utils';
 import { IBGEUF, IBGECity } from '../../types';
 
 const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => void, isInitialSetup?: boolean }) => {
+    // Start in read-only mode ONLY if it's NOT the initial setup.
+    // Initial setup must be editable immediately.
+    const [isEditing, setIsEditing] = useState(isInitialSetup);
+
     const [name, setName] = useState('');
     const [nickname, setNickname] = useState('');
     const [password, setPassword] = useState('');
@@ -354,11 +358,13 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
             }
 
             // success
+            setIsEditing(false); // Switch back to read-only on success
             if (!isInitialSetup) {
                 setMsg('Perfil atualizado com sucesso!');
-                setTimeout(() => onBack(), 1500);
+                setTimeout(() => typeof onBack === 'function' && onBack(), 1500);
             } else {
-                onBack();
+                setMsg('Perfil concluído!');
+                setTimeout(() => typeof onBack === 'function' && onBack(), 1000);
             }
 
         } catch (err: any) {
@@ -379,15 +385,22 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
     return (
         <div className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark p-6">
             <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+                {/* Back button logic restored: only show if NOT initial setup */}
                 {!isInitialSetup && (
                     <button onClick={onBack} className="absolute top-6 left-6 text-slate-400 hover:text-slate-600">
                         <span className="material-symbols-outlined">arrow_back</span>
                     </button>
                 )}
+
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{isInitialSetup ? 'Complete seu perfil' : 'Editar Perfil'}</h2>
-                    <p className="mt-2 text-sm text-slate-500">{isInitialSetup ? 'Defina sua senha e seus dados.' : 'Atualize suas informações.'}</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                        {isEditing
+                            ? (isInitialSetup ? 'Defina sua senha e seus dados.' : 'Atualize suas informações.')
+                            : 'Confira seus dados abaixo.'}
+                    </p>
                 </div>
+
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="flex justify-center mb-6">
@@ -395,7 +408,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                             <div className="size-24 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center border-4 border-white dark:border-background-dark shadow-lg" style={{ backgroundImage: `url("${avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCVdFllcYvR_SQdhiLy6q6oJFyrQF6rEUOF1t-YNSD4sADJPl-Xgc1SE_0AOn6dHxGfLIHDzs19LXKFvPyCf2QLjTFEU9Pb8jpHKkgFXdw1LRNojzyi7dWZqgXHs9ZKX9dueXN6KJh1tC4b22ppQZXyZ_kS720EkJUVzW2P9oTjsbjWKQUo8RW-kbhcm0lKGW30UyhA3aBtCoJHWu0btWdjZI5Fa7dgpAkINIIFkBcIAciFz0ynwaw5gUWmyagrTsV2out7jYi5LwA'}")` }}>
                             </div>
                             <label
-                                className={`absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 hover:bg-primary/90 shadow-md transform translate-x-1/4 translate-y-1/4 cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                                className={`absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 hover:bg-primary/90 shadow-md transform translate-x-1/4 translate-y-1/4 cursor-pointer ${(!isEditing || isUploading) ? 'opacity-50 pointer-events-none' : ''}`}
                             >
                                 {isUploading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">edit</span>}
                                 <input
@@ -403,7 +416,7 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                                     accept="image/*"
                                     className="hidden"
                                     onChange={handleAvatarUpload}
-                                    disabled={isUploading}
+                                    disabled={!isEditing || isUploading}
                                 />
                             </label>
                         </div>
@@ -414,7 +427,8 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         <input
                             type="text"
                             required
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            disabled={!isEditing}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-800"
                             placeholder="Ex: Maria Silva"
                             value={name}
                             onChange={e => setName(e.target.value)}
@@ -426,12 +440,13 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         <input
                             type="text"
                             maxLength={20}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            disabled={!isEditing}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-800"
                             placeholder="Ex: Maria"
                             value={nickname}
                             onChange={e => setNickname(e.target.value)}
                         />
-                        <p className="text-xs text-slate-500 mt-1">Máximo de 20 caracteres.</p>
+                        {isEditing && <p className="text-xs text-slate-500 mt-1">Máximo de 20 caracteres.</p>}
                     </div>
 
                     <div>
@@ -439,31 +454,35 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         <div className="relative">
                             <input
                                 type={showPassword ? 'text' : 'password'}
-                                required={isInitialSetup}
+                                required={isInitialSetup && isEditing}
                                 minLength={6}
-                                className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
-                                placeholder={isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter"}
+                                disabled={!isEditing}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-800"
+                                placeholder={isEditing ? (isInitialSetup ? "Crie sua senha" : "Deixe em branco para manter") : "********"}
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
                             />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(p => !p)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-300"
-                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                            >
-                                {showPassword ? 'Ocultar' : 'Mostrar'}
-                            </button>
+                            {isEditing && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(p => !p)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-300"
+                                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                >
+                                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                                </button>
+                            )}
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>
+                        {isEditing && <p className="text-xs text-slate-500 mt-1">Mínimo de 6 caracteres.</p>}
                     </div>
 
                     <div className="flex gap-4">
                         <div className="w-1/3">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                             <select
-                                required={isInitialSetup}
-                                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                                required={isInitialSetup && isEditing}
+                                disabled={!isEditing}
+                                className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-800"
                                 value={selectedUf}
                                 onChange={e => {
                                     setSelectedUf(e.target.value);
@@ -480,8 +499,8 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         <div className="flex-1">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cidade</label>
                             <select
-                                required={isInitialSetup}
-                                disabled={!selectedUf}
+                                required={isInitialSetup && isEditing}
+                                disabled={!isEditing || !selectedUf}
                                 className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-50"
                                 value={selectedCity}
                                 onChange={e => setSelectedCity(e.target.value)}
@@ -499,24 +518,46 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         <input
                             type="tel"
                             required
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100"
+                            disabled={!isEditing}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-800"
                             placeholder="(11) 99999-9999"
                             value={phone}
                             onChange={e => setPhone(e.target.value)}
                         />
-                        <p className="text-xs text-slate-500 mt-1">Usado apenas para parear seus contatos. Não será exibido publicamente.</p>
+                        {isEditing && <p className="text-xs text-slate-500 mt-1">Usado apenas para parear seus contatos. Não será exibido publicamente.</p>}
                     </div>
 
                     {error && <p className="text-red-500 text-sm text-center">{error}</p>}
                     {msg && <p className="text-green-500 text-sm text-center">{msg}</p>}
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
-                    >
-                        {loading ? 'Salvando...' : (isInitialSetup ? 'Concluir Cadastro' : 'Salvar Alterações')}
-                    </button>
+                    {isEditing ? (
+                        <>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] disabled:opacity-70"
+                            >
+                                {loading ? 'Salvando...' : (isInitialSetup ? 'Concluir Cadastro' : 'Salvar Alterações')}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsEditing(false)}
+                                disabled={loading}
+                                className="w-full bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-bold py-3 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                            >
+                                Cancelar Edição
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setIsEditing(true)}
+                            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98]"
+                        >
+                            Editar Dados
+                        </button>
+                    )}
                 </form>
 
                 <div className="mt-6 text-center">
