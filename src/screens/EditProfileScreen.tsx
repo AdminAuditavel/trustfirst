@@ -471,7 +471,6 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                         <div className="relative">
                             <input
                                 type={showPassword ? 'text' : 'password'}
-                                required={isInitialSetup && isEditing}
                                 minLength={6}
                                 disabled={!isEditing}
                                 className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 bg-white dark:bg-[#1c2127] dark:border-slate-700 dark:text-white focus:ring-primary focus:border-primary border-slate-100 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-800"
