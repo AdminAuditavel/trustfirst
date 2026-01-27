@@ -200,17 +200,17 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
                     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
                     const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
-                    const body = `email=${encodeURIComponent(normalizedEmail)}&password=${encodeURIComponent(password)}`;
+                    const jsonBody = JSON.stringify({ email: normalizedEmail, password });
 
                     const rawResp = await withTimeout(
                         fetch(tokenUrl, {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'Content-Type': 'application/json',
                                 'apikey': anonKey,
                                 'Authorization': `Bearer ${anonKey}`
                             },
-                            body
+                            body: jsonBody
                         }),
                         10000
                     );
@@ -276,17 +276,17 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
                 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
                 const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
-                const body = `email=${encodeURIComponent(normalizedEmail)}&password=${encodeURIComponent(password)}`;
+                const jsonBody = JSON.stringify({ email: normalizedEmail, password });
 
                 const rawResp = await withTimeout(
                     fetch(tokenUrl, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Content-Type': 'application/json',
                             'apikey': anonKey,
                             'Authorization': `Bearer ${anonKey}`
                         },
-                        body
+                        body: jsonBody
                     }),
                     10000
                 );
