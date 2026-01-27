@@ -178,21 +178,93 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setLoading(true);
         setMessage('');
 
-        try {
-            const normalizedEmail = email.trim().toLowerCase();
+        const normalizedEmail = email.trim().toLowerCase();
+        console.log('[Auth] handlePasswordLogin start', { email: normalizedEmail });
 
-            const { error } = await supabase.auth.signInWithPassword({
+        try {
+            // Try SDK signInWithPassword with timeout
+            const signInPromise = supabase.auth.signInWithPassword({
                 email: normalizedEmail,
                 password
             } as any);
 
-            if (error) throw error;
+            const result: any = await withTimeout(signInPromise, 10000);
+            console.log('[Auth] signInWithPassword result', result);
+
+            const error = result?.error ?? result?.data?.error;
+            const data = result?.data ?? result;
+
+            if (error) {
+                // SDK returned an error object
+                console.warn('[Auth] signInWithPassword error', error);
+                throw error;
+            }
+
+            // When successful, supabase v2 often returns data.session and data.user
+            const session = data?.session ?? null;
+            const user = data?.user ?? null;
+
+            if (session || user) {
+                console.log('[Auth] password login successful', { user, session });
+                onLogin();
+                return;
+            }
+
+            // If SDK returned something unexpected, fallthrough to raw fetch fallback
+            console.warn('[Auth] signInWithPassword returned unexpected payload, falling back to REST', result);
+
+            // Fallback: call auth/v1/token endpoint directly (grant_type=password)
+            const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+            const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
+            const body = `email=${encodeURIComponent(normalizedEmail)}&password=${encodeURIComponent(password)}`;
+
+            const rawResp = await withTimeout(
+                fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'apikey': anonKey,
+                        'Authorization': `Bearer ${anonKey}`
+                    },
+                    body
+                }),
+                10000
+            );
+
+            const rawJson = await rawResp.json();
+            console.log('[Auth] raw token response', rawResp.status, rawJson);
+
+            if (!rawResp.ok) {
+                const messageText = rawJson?.error_description || rawJson?.error || JSON.stringify(rawJson);
+                throw new Error(`Login failed: ${messageText}`);
+            }
+
+            // success: Supabase returns access_token and user
+            console.log('[Auth] raw login success', rawJson);
+            // Note: SDK should pick up the session automatically if it receives the cookie/token
+            // but to be safe, call onLogin() to continue app flow
             onLogin();
         } catch (err: any) {
-            console.error('Password login error', err);
-            setMessage('Senha incorreta ou erro no login.');
+            console.error('[Auth] Password login failed', err);
+
+            const isTimeout = err?.message === 'timeout' || err?.message?.includes('Tempo limite');
+            if (isTimeout) {
+                setMessage('O servidor demorou para responder. Tente novamente.');
+            } else {
+                // Show a readable message for common auth errors
+                const msg = err?.message || (err?.error || 'Erro no login.');
+                if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('senha') || msg.toLowerCase().includes('password')) {
+                    setMessage('Senha incorreta ou usuário inexistente.');
+                } else if (msg.toLowerCase().includes('authorization') || msg.toLowerCase().includes('expired')) {
+                    setMessage('Erro de autorização. Faça login novamente.');
+                } else {
+                    setMessage(typeof msg === 'string' ? msg : 'Erro ao conectar. Tente novamente.');
+                }
+            }
         } finally {
             setLoading(false);
+            console.log('[Auth] handlePasswordLogin finished');
         }
     };
 
