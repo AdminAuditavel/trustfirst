@@ -40,7 +40,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
             const rpcPromise = supabase.rpc('check_user_exists', { email_arg: normalizedEmail });
 
             // wrap with timeout (5s)
-            const rpcResult: any = await withTimeout(rpcPromise, 5000);
+            const rpcResult: any = await withTimeout(rpcPromise, 10000);
 
             console.log('[Auth] rpcResult', rpcResult);
 
