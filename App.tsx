@@ -39,6 +39,15 @@ const App: React.FC = () => {
 
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
 
+  // Helper: timeout wrapper
+  const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), ms);
+      p.then(res => { clearTimeout(timer); resolve(res); })
+        .catch(err => { clearTimeout(timer); reject(err); });
+    });
+  };
+
   const checkProfile = async (currentSession: any): Promise<boolean> => {
     if (!currentSession?.user) {
       setHasProfile(false);
@@ -47,7 +56,47 @@ const App: React.FC = () => {
     }
 
     try {
-      const { data, error } = await supabase.from('users').select('id, name, avatar_url').eq('id', currentSession.user.id).maybeSingle();
+      console.log('[App] checkProfile: checking for user', currentSession.user.id);
+
+      // Try using raw fetch if we have an access token, to bypass potential SDK hang/auth issues
+      const accessToken = currentSession.access_token;
+      if (accessToken) {
+        try {
+          const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+          const url = `${projectUrl}/rest/v1/users?id=eq.${currentSession.user.id}&select=id,name,avatar_url&limit=1`;
+
+          console.log('[App] checkProfile: fetching raw');
+          const resp = await withTimeout(fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': anonKey,
+              'Authorization': `Bearer ${accessToken}`,
+              'Prefer': 'return=representation'
+            }
+          }), 5000); // 5s timeout
+
+          if (resp.ok) {
+            const rows = await resp.json();
+            const data = rows && rows.length > 0 ? rows[0] : null;
+            const exists = !!(data && data.name);
+            console.log(`[App] checkProfile (raw): ${exists ? 'Found' : 'Not Found'}`);
+
+            setHasProfile(exists);
+            if (data) setUserAvatar(data.avatar_url);
+            return exists;
+          }
+        } catch (rawErr) {
+          console.warn('[App] checkProfile raw fetch failed, falling back to SDK', rawErr);
+        }
+      }
+
+      // SDK Fallback (with timeout)
+      const { data, error } = await withTimeout(
+        supabase.from('users').select('id, name, avatar_url').eq('id', currentSession.user.id).maybeSingle(),
+        5000
+      );
 
       if (error) {
         console.error("Profile check error:", error);
