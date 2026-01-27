@@ -26,6 +26,32 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         });
     };
 
+    const callCheckUserExistsViaFetch = async (normalizedEmail: string) => {
+        const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+        const endpoint = `${projectUrl}/rest/v1/rpc/check_user_exists`;
+
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': anonKey,
+                'Authorization': `Bearer ${anonKey}`
+            },
+            body: JSON.stringify({ email_arg: normalizedEmail })
+        });
+
+        const text = await resp.text();
+
+        // Try parse JSON (some responses may be raw true/false)
+        try {
+            const parsed = JSON.parse(text);
+            return { httpStatus: resp.status, data: parsed, ok: resp.ok, raw: text };
+        } catch (e) {
+            return { httpStatus: resp.status, data: text === 'true' ? true : (text === 'false' ? false : text), ok: resp.ok, raw: text };
+        }
+    };
+
     const handleCheckEmail = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -36,19 +62,18 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         console.log('[Auth] handleCheckEmail start', { email: normalizedEmail });
 
         try {
-            // Call RPC that returns boolean (or variant). supabase.rpc sometimes returns primitive or { data, error }.
-            const rpcPromise = supabase.rpc('check_user_exists', { email_arg: normalizedEmail });
+            // Use REST/fetch to avoid intermittent SDK rpc timeouts in this environment
+            console.log('[Auth] calling REST RPC via fetch');
+            const fetchPromise = callCheckUserExistsViaFetch(normalizedEmail);
 
-            // wrap with timeout (5s)
-            const rpcResult: any = await withTimeout(rpcPromise, 10000);
+            // wrap with timeout (10s)
+            const rpcResult: any = await withTimeout(fetchPromise, 10000);
 
-            console.log('[Auth] rpcResult', rpcResult);
+            console.log('[Auth] fetch rpcResult', rpcResult);
 
-            // Support both shapes:
-            // - supabase.rpc may return { data: <value>, error: <err> }
-            // - or may directly return a primitive boolean true/false
+            // rpcResult shape: { httpStatus, data, ok, raw } or fallback
             const rpcError = rpcResult?.error;
-            const userExistsRaw = rpcResult?.data ?? rpcResult; // <-- key: handle both shapes
+            const userExistsRaw = rpcResult?.data ?? rpcResult;
 
             if (rpcError) {
                 console.error('[Auth] rpcError', rpcError);
@@ -93,7 +118,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     },
                 });
 
-                const otpResult: any = await withTimeout(otpPromise, 5000);
+                const otpResult: any = await withTimeout(otpPromise, 10000);
 
                 console.log('[Auth] otpResult', otpResult);
 
@@ -128,7 +153,7 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     });
 
                     // Also timeout the fallback
-                    const otpResult: any = await withTimeout(signInPromise, 5000);
+                    const otpResult: any = await withTimeout(signInPromise, 10000);
 
                     const otpError = otpResult?.error ?? (otpResult?.data?.error);
                     if (otpError) throw otpError;
