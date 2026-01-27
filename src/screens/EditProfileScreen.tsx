@@ -566,13 +566,25 @@ const EditProfileScreen = ({ onBack, isInitialSetup = false }: { onBack: () => v
                             </button>
                         </>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={() => setIsEditing(true)}
-                            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98]"
-                        >
-                            Editar Dados
-                        </button>
+                        <div className="space-y-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsEditing(true)}
+                                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98]"
+                            >
+                                Editar Dados
+                            </button>
+
+                            {!isInitialSetup && (
+                                <button
+                                    type="button"
+                                    onClick={onBack}
+                                    className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    Voltar
+                                </button>
+                            )}
+                        </div>
                     )}
                 </form>
 
