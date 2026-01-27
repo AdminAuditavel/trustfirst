@@ -1,3 +1,5 @@
+//src/screens/AuthScreen.tsx
+
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -28,18 +30,21 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         e.preventDefault();
         setLoading(true);
         setMessage('');
-        console.log('[Auth] handleCheckEmail start', { email });
+
+        // Normalize email on the client to match DB normalization (trim + lower)
+        const normalizedEmail = email.trim().toLowerCase();
+        console.log('[Auth] handleCheckEmail start', { email: normalizedEmail });
 
         try {
-            const rpcPromise = supabase.rpc('check_user_exists', { email_arg: email });
+            // Call RPC that returns boolean (or variant). supabase.rpc usually returns { data, error }.
+            const rpcPromise = supabase.rpc('check_user_exists', { email_arg: normalizedEmail });
 
             // wrap with timeout (5s)
-            // Use Promise.resolve to handle any thenable/builder issues with types
-            const rpcResult: any = await withTimeout(Promise.resolve(rpcPromise), 5000);
+            const rpcResult: any = await withTimeout(rpcPromise, 5000);
 
             console.log('[Auth] rpcResult', rpcResult);
 
-            const userExists = rpcResult?.data ?? rpcResult; // adjust depending on supabase client shape
+            const rpcData = rpcResult?.data;
             const rpcError = rpcResult?.error;
 
             if (rpcError) {
@@ -47,38 +52,63 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 throw rpcError;
             }
 
-            // NOTE: depending on how the Postgres function returns, userExists might be true/false,
-            // or an object/array. Inspect rpcResult in console to confirm.
-            const existsFlag = !!userExists;
+            // Interpret rpcData into a boolean flag safely
+            let existsFlag = false;
+            if (typeof rpcData === 'boolean') {
+                existsFlag = rpcData;
+            } else if (Array.isArray(rpcData) && rpcData.length > 0) {
+                const first = rpcData[0];
+                if (typeof first === 'boolean') {
+                    existsFlag = first;
+                } else if (typeof first === 'object' && first !== null) {
+                    // Grab first boolean-like value in object
+                    const v = Object.values(first).find(val => typeof val === 'boolean' || typeof val === 'number' || typeof val === 'string');
+                    existsFlag = !!v;
+                } else {
+                    existsFlag = !!first;
+                }
+            } else {
+                // fallback: coerce any truthy value
+                existsFlag = !!rpcData;
+            }
+
             console.log('[Auth] existsFlag', existsFlag);
 
             if (existsFlag) {
                 // User exists -> Show password screen
+                // Keep the displayed email normalized for consistency
+                setEmail(normalizedEmail);
                 setStep('password');
             } else {
                 // Verified New User -> Send Magic Link (also wrapped with timeout)
-                console.log('[Auth] sending magic link to', email);
-                const otpResult: any = await withTimeout(
-                    supabase.auth.signInWithOtp({
-                        email,
-                        options: {
-                            emailRedirectTo: window.location.origin,
-                            shouldCreateUser: true,
-                        },
-                    }),
-                    5000
-                );
+                console.log('[Auth] sending magic link to', normalizedEmail);
+
+                // ensure email state is normalized so magic_link screen displays normalized address
+                setEmail(normalizedEmail);
+
+                const otpPromise = supabase.auth.signInWithOtp({
+                    email: normalizedEmail,
+                    options: {
+                        emailRedirectTo: window.location.origin,
+                        shouldCreateUser: true,
+                    },
+                });
+
+                const otpResult: any = await withTimeout(otpPromise, 5000);
 
                 console.log('[Auth] otpResult', otpResult);
 
-                if (otpResult?.error) throw otpResult.error;
+                // supabase v2 usually returns { data, error } — handle both shapes
+                const otpError = otpResult?.error ?? (otpResult?.data?.error);
+                if (otpError) throw otpError;
+
                 setStep('magic_link');
             }
         } catch (err: any) {
             console.error('Check email error:', err);
 
-            const isRateLimit = err.message?.includes('rate limit') || err.message?.includes('429') || err.status === 429;
-            const isTimeout = err.message === 'timeout' || err.message?.includes('Tempo limite');
+            const isRateLimit = err?.message?.includes('rate limit') || err?.message?.includes('429') || err?.status === 429;
+            const isTimeout = err?.message === 'timeout' || err?.message?.includes('Tempo limite');
 
             if (isRateLimit) {
                 setMessage('Muitas tentativas. Aguarde 60 segundos antes de tentar novamente.');
@@ -88,8 +118,11 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 setMessage('Verificação instável. Tentando envio de link mágico...');
 
                 try {
+                    const normalizedEmail = email.trim().toLowerCase();
+                    setEmail(normalizedEmail);
+
                     const signInPromise = supabase.auth.signInWithOtp({
-                        email,
+                        email: normalizedEmail,
                         options: {
                             emailRedirectTo: window.location.origin,
                             shouldCreateUser: true,
@@ -97,16 +130,17 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                     });
 
                     // Also timeout the fallback
-                    const { error: otpError } = await withTimeout(signInPromise, 5000) as any;
+                    const otpResult: any = await withTimeout(signInPromise, 5000);
 
+                    const otpError = otpResult?.error ?? (otpResult?.data?.error);
                     if (otpError) throw otpError;
 
                     setStep('magic_link');
                 } catch (otpErr: any) {
-                    if (otpErr.message === 'timeout') {
+                    if (otpErr?.message === 'timeout') {
                         setMessage('O servidor demorou para responder. Verifique sua conexão.');
                     } else {
-                        setMessage(otpErr.message || 'Erro ao conectar. Verifique sua rede.');
+                        setMessage(otpErr?.message || 'Erro ao conectar. Verifique sua rede.');
                     }
                 }
             }
@@ -122,14 +156,17 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
         setMessage('');
 
         try {
+            const normalizedEmail = email.trim().toLowerCase();
+
             const { error } = await supabase.auth.signInWithPassword({
-                email,
+                email: normalizedEmail,
                 password
-            });
+            } as any);
 
             if (error) throw error;
             onLogin();
         } catch (err: any) {
+            console.error('Password login error', err);
             setMessage('Senha incorreta ou erro no login.');
         } finally {
             setLoading(false);
