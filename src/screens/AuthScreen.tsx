@@ -188,14 +188,72 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 password
             } as any);
 
-            const result: any = await withTimeout(signInPromise, 10000);
-            console.log('[Auth] signInWithPassword result', result);
+            let result: any;
+            try {
+                result = await withTimeout(signInPromise, 10000);
+                console.log('[Auth] signInWithPassword result', result);
+            } catch (sdkErr: any) {
+                // If SDK timed out, try REST token fallback
+                if (sdkErr?.message === 'timeout') {
+                    console.warn('[Auth] signInWithPassword timed out, attempting REST token fallback');
+                    // REST token fallback
+                    const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+                    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+                    const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
+                    const body = `email=${encodeURIComponent(normalizedEmail)}&password=${encodeURIComponent(password)}`;
 
+                    const rawResp = await withTimeout(
+                        fetch(tokenUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'apikey': anonKey,
+                                'Authorization': `Bearer ${anonKey}`
+                            },
+                            body
+                        }),
+                        10000
+                    );
+
+                    const rawJson = await rawResp.json();
+                    console.log('[Auth] raw token response', rawResp.status, rawJson);
+
+                    if (!rawResp.ok) {
+                        const messageText = rawJson?.error_description || rawJson?.error || JSON.stringify(rawJson);
+                        throw new Error(`Login failed: ${messageText}`);
+                    }
+
+                    // Set session in the client so SDK state is correct
+                    try {
+                        // supabase.auth.setSession expects an object with access_token/refresh_token
+                        const { data: setData, error: setErr } = await supabase.auth.setSession({
+                            access_token: rawJson.access_token,
+                            refresh_token: rawJson.refresh_token
+                        } as any);
+                        if (setErr) {
+                            console.warn('[Auth] setSession error', setErr);
+                            // still continue to onLogin if token was returned successfully
+                        } else {
+                            console.log('[Auth] setSession success', setData);
+                        }
+                    } catch (setEx) {
+                        console.warn('[Auth] setSession threw', setEx);
+                    }
+
+                    // successful fallback login
+                    onLogin();
+                    return;
+                } else {
+                    // non-timeout SDK error: rethrow to outer catch
+                    throw sdkErr;
+                }
+            }
+
+            // If we reach here, SDK resolved before timeout
             const error = result?.error ?? result?.data?.error;
             const data = result?.data ?? result;
 
             if (error) {
-                // SDK returned an error object
                 console.warn('[Auth] signInWithPassword error', error);
                 throw error;
             }
@@ -210,41 +268,55 @@ const AuthScreen = ({ onLogin, onCompleteProfile, onForgotPassword }: { onLogin:
                 return;
             }
 
-            // If SDK returned something unexpected, fallthrough to raw fetch fallback
-            console.warn('[Auth] signInWithPassword returned unexpected payload, falling back to REST', result);
+            // If SDK returned something unexpected, fallthrough to REST fallback
+            console.warn('[Auth] signInWithPassword returned unexpected payload, falling back to REST token flow', result);
 
             // Fallback: call auth/v1/token endpoint directly (grant_type=password)
-            const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-            const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
-            const body = `email=${encodeURIComponent(normalizedEmail)}&password=${encodeURIComponent(password)}`;
+            try {
+                const projectUrl = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+                const tokenUrl = `${projectUrl}/auth/v1/token?grant_type=password`;
+                const body = `email=${encodeURIComponent(normalizedEmail)}&password=${encodeURIComponent(password)}`;
 
-            const rawResp = await withTimeout(
-                fetch(tokenUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'apikey': anonKey,
-                        'Authorization': `Bearer ${anonKey}`
-                    },
-                    body
-                }),
-                10000
-            );
+                const rawResp = await withTimeout(
+                    fetch(tokenUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'apikey': anonKey,
+                            'Authorization': `Bearer ${anonKey}`
+                        },
+                        body
+                    }),
+                    10000
+                );
 
-            const rawJson = await rawResp.json();
-            console.log('[Auth] raw token response', rawResp.status, rawJson);
+                const rawJson = await rawResp.json();
+                console.log('[Auth] raw token response', rawResp.status, rawJson);
 
-            if (!rawResp.ok) {
-                const messageText = rawJson?.error_description || rawJson?.error || JSON.stringify(rawJson);
-                throw new Error(`Login failed: ${messageText}`);
+                if (!rawResp.ok) {
+                    const messageText = rawJson?.error_description || rawJson?.error || JSON.stringify(rawJson);
+                    throw new Error(`Login failed: ${messageText}`);
+                }
+
+                // Set session
+                try {
+                    const { data: setData, error: setErr } = await supabase.auth.setSession({
+                        access_token: rawJson.access_token,
+                        refresh_token: rawJson.refresh_token
+                    } as any);
+                    if (setErr) console.warn('[Auth] setSession error', setErr);
+                    else console.log('[Auth] setSession success', setData);
+                } catch (setEx) {
+                    console.warn('[Auth] setSession threw', setEx);
+                }
+
+                onLogin();
+                return;
+            } catch (rawErr) {
+                console.error('[Auth] raw fallback error', rawErr);
+                throw rawErr;
             }
-
-            // success: Supabase returns access_token and user
-            console.log('[Auth] raw login success', rawJson);
-            // Note: SDK should pick up the session automatically if it receives the cookie/token
-            // but to be safe, call onLogin() to continue app flow
-            onLogin();
         } catch (err: any) {
             console.error('[Auth] Password login failed', err);
 
